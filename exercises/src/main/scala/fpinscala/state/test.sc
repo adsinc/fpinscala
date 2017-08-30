@@ -1,4 +1,3 @@
-import fpinscala.state.RNG
-import fpinscala.state.RNG.Simple
+import fpinscala.state.RNG._
 
-RNG.double(Simple(12100))
+ints(5)(Simple(1))
