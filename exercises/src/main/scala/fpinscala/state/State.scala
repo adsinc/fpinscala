@@ -37,10 +37,8 @@ object RNG {
     else (-1, newRng)
   }
 
-  def double(rng: RNG): (Double, RNG) = {
-    val (n, newRng) = nonNegativeInt(rng)
-    (n.toDouble / Int.MaxValue, newRng)
-  }
+  def double(rng: RNG): (Double, RNG) =
+    map(nonNegativeInt)(i => i.toDouble / Int.MaxValue)(rng)
 
   def intDouble(rng: RNG): ((Int,Double), RNG) = {
     val (i, g1) = rng.nextInt
@@ -71,7 +69,15 @@ object RNG {
     loop(count, Nil, rng)
   }
 
-  def map2[A,B,C](ra: Rand[A], rb: Rand[B])(f: (A, B) => C): Rand[C] = ???
+  def map2[A,B,C](ra: Rand[A], rb: Rand[B])(f: (A, B) => C): Rand[C] =
+    rng => {
+      val (a, ar) = ra(rng)
+      val (b, br) = ra(ar)
+      (f(a, b), br)
+    }
+
+  def both[A, B](ra: Rand[A], rb: Rand[B]): Rand[(A, B)] =
+    map2(ra, rb)((_, _))
 
   def sequence[A](fs: List[Rand[A]]): Rand[List[A]] = ???
 
