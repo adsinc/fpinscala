@@ -1,6 +1,7 @@
 package fpinscala.state
 
 import fpinscala.state.RNG.Rand
+import fpinscala.state.State.{get, modify}
 
 
 trait RNG {
@@ -112,8 +113,8 @@ case class State[S,+A](run: S => (A, S)) {
     flatMap(a => sb map (b => f(a, b)))
 
   def flatMap[B](f: A => State[S, B]): State[S, B] =
-    State(rng => {
-      val (a, r2) = run(rng)
+    State(s => {
+      val (a, r2) = run(s)
       f(a).run(r2)
     })
 }
@@ -126,9 +127,32 @@ case class Machine(locked: Boolean, candies: Int, coins: Int)
 
 object State {
   type Rand[A] = State[RNG, A]
-  def simulateMachine(inputs: List[Input]): State[Machine, (Int, Int)] = ???
+
+  def simulateMachine(inputs: List[Input]): State[Machine, (Int, Int)] = for {
+    _ <- sequence(inputs map(modify[Machine] _ compose update))
+    s <- get
+  } yield (s.coins, s.candies)
+
+  def update(i: Input)(m: Machine): Machine = (i, m) match {
+      case (_, Machine(_, 0, _)) => m
+      case (Turn, Machine(true, _, _)) => m
+      case (Coin, Machine(false, _, _)) => m
+      case (Coin, Machine(true, candies, coins)) =>
+        Machine(locked = false, candies, coins + 1)
+      case (Turn, Machine(false, candies, coins)) =>
+        Machine(locked = true, candies - 1, coins)
+    }
 
   def unit[S, A](a: A): State[S, A] = State(s => (a, s))
+
+  def get[S]: State[S, S] = State(s => (s, s))
+
+  def set[S](s: S): State[S, Unit] = State(_ => ((), s))
+
+  def modify[S](f: S => S): State[S, Unit] = for {
+    s <- get
+    _ <- set(f(s))
+  } yield ()
 
   def sequence[S, A](fs: List[State[S, A]]): State[S, List[A]] =
     fs.foldRight(unit[S, List[A]](List.empty[A]))((f, acc) => f.map2(acc)(_ :: _))
