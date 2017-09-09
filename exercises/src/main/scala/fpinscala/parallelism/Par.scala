@@ -76,6 +76,14 @@ object Par {
 
   def asyncF[A, B](f: A => B): A => Par[B] =
     a => lazyUnit(f(a))
+
+  def sequence[A](ps: List[Par[A]]): Par[List[A]] =
+    es => UnitFuture(ps.map(_.apply(es).get()))
+
+  def parMap[A, B](ps: List[A])(f: A => B): Par[List[B]] = fork {
+    val fbs: List[Par[B]] = ps.map(asyncF(f))
+    sequence(fbs)
+  }
 }
 
 object Examples {
