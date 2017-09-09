@@ -2,10 +2,10 @@ import java.util.concurrent.Executors
 
 import fpinscala.parallelism.Par._
 
-val p = asyncF[Int, Int](a => a + 10)
+import scala.util.Random
 
-run(Executors.newCachedThreadPool())(p(10)).get()
+val as = List.fill(10)(Random.nextInt())
 
-val pm = parMap(List.fill(1000)(10))(_ + 1)
+val pm = fold(as.tail.toIndexedSeq)(as.head)(math.max)
 
 run(Executors.newCachedThreadPool())(pm).get
