@@ -99,13 +99,33 @@ object Par {
       map2(fork(parSum(l)), fork(parSum(r)))(_ + _)
     }
 
-  def fold[A](as: IndexedSeq[A])(z: A)(f: (A, A) => A) : Par[A] = {
+  def fold[A](as: IndexedSeq[A])(z: A)(f: (A, A) => A) : Par[A] = fork {
     if(as.size <= 1)
       unit(as.headOption getOrElse z)
     else {
       val(l, r) = as.splitAt(as.length / 2)
       map2(fork(fold(l)(z)(f)), fold(r)(z)(f))(f)
     }
+  }
+
+  def countWords(texts: List[String]): Par[Int] = fork {
+    val d = parMap(texts)(_.split("\\s+").length)
+    map(d)(counts => counts.sum)
+  }
+
+  def map3[A,B,C,D](a: Par[A], b: Par[B], c: Par[C])(f: (A,B,C) => D): Par[D] = {
+    val fp = map2(a, b)((aa, bb) => f.curried(aa)(bb))
+    map2(fp, c)((fpar, cc) => fpar(cc))
+  }
+
+  def map4[A,B,C,D,E](a: Par[A], b: Par[B], c: Par[C], d: Par[D])(f: (A,B,C,D) => E): Par[E] = {
+    val fp = map3(a, b, c)((aa, bb, cc) => f.curried(aa)(bb)(cc))
+    map2(fp, d)((fpar, dd) => fpar(dd))
+  }
+
+  def map5[A,B,C,D,E,F](a: Par[A], b: Par[B], c: Par[C], d: Par[D], e: Par[E])(f: (A,B,C,D,E) => F): Par[F] = {
+    val fp = map4(a, b, c, d)((aa, bb, cc, dd) => f.curried(aa)(bb)(cc)(dd))
+    map2(fp, e)((fpar, ee) => fpar(ee))
   }
 }
 
