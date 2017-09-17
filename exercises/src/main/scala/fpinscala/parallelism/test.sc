@@ -1,8 +1,7 @@
 import java.util.concurrent.Executors
 
-import fpinscala.parallelism.Nonblocking._
-import fpinscala.parallelism.Nonblocking.Par._
+import fpinscala.parallelism.Par._
 
-val c = choiceMap(unit(2))(Map(1 -> unit("TRUE"), 2 -> unit("FALSE")))
+val as = List("Hello java", "Ololo", "London is the capital")
 
-run(Executors.newCachedThreadPool())(c)
+run(Executors.newCachedThreadPool())(countWords(as)).get
