@@ -1,7 +1,8 @@
 import java.util.concurrent.Executors
 
-import fpinscala.parallelism.Par._
+import fpinscala.parallelism.Nonblocking._
+import fpinscala.parallelism.Nonblocking.Par._
 
-val as = List("Hello java", "Ololo", "London is the capital")
+val c = map2ViaFlatMap(unit(10), unit(20))(_ * _)
 
-run(Executors.newCachedThreadPool())(countWords(as)).get
+run(Executors.newCachedThreadPool())(c)
