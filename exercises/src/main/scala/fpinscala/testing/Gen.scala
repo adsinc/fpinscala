@@ -1,8 +1,8 @@
 package fpinscala.testing
 
-import fpinscala.laziness.Stream
 import fpinscala.state._
 import fpinscala.parallelism._
+import fpinscala.laziness._
 import fpinscala.parallelism.Par.Par
 import Gen._
 import Prop._
@@ -13,18 +13,63 @@ The library developed in this chapter goes through several iterations. This file
 shell, which you can fill in and modify while working through the chapter.
 */
 
-trait Prop {
+case class Prop(run: (TestCases, RNG) => Result) {
 
-  def check: Either[(FailedCase, SuccessCount), SuccessCount]
+  def &&(p: Prop): Prop = Prop {
+    case (n, rng) => run(n, rng) match {
+      case Passed => p.run(n, rng)
+      case x => x
+    }
+  }
 
-  def &&(p: Prop): Prop = ???
+  def ||(p: Prop): Prop = Prop {
+    case (n, rng) => run(n, rng) match {
+      case Falsified(msg, _) => p.tag(msg).run(n, rng)
+      case x => x
+    }
+  }
+
+  def tag(msg: String) = Prop {
+    (n,rng) => run(n,rng) match {
+      case Falsified(e, c) => Falsified(msg + "\n" + e, c)
+      case x => x
+    }
+  }
 }
 
 object Prop {
   type FailedCase = String
   type SuccessCount = Int
+  type TestCases = Int
 
-  def forAll[A](gen: Gen[A])(f: A => Boolean): Prop = ???
+  sealed trait Result {
+    def isFalsified: Boolean
+  }
+  case object Passed extends Result {
+    def isFalsified = false
+  }
+  case class Falsified(failure: FailedCase,
+                       successes: SuccessCount) extends Result {
+    def isFalsified = true
+  }
+
+  def forAll[A](as: Gen[A])(f: A => Boolean): Prop = Prop {
+    (n, rng) => randomStream(as)(rng).zip(Stream.from(0)).take(n).map {
+      case (a, i) => try {
+        if (f(a)) Passed else Falsified(a.toString, i)
+      } catch { case e: Exception => Falsified(buildMsg(a, e), i)}
+    }.find(_.isFalsified).getOrElse(Passed)
+  }
+
+  def randomStream[A](g: Gen[A])(rng: RNG): Stream[A] =
+    Stream.unfold(rng)(rng => Some(g.sample.run(rng)))
+
+  def buildMsg[A](s: A, e: Exception): String =
+    s"""test case: $s
+       |generated an exception: ${e.getMessage}
+       |stack trace:
+       |${e.getStackTrace.mkString("\n")}
+     """.stripMargin
 }
 
 case class Gen[A](sample: State[RNG, A]) {
