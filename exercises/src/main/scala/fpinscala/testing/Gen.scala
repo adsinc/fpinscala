@@ -106,8 +106,19 @@ object Prop {
         println(s"+ OK, proved property.")
     }
 
+  val ES: ExecutorService = Executors.newCachedThreadPool()
+  val p1 = Prop.forAll(Gen.unit(Par.unit(1)))(i =>
+    Par.map(i)(_ + 1)(ES).get() == Par.unit(2)(ES).get()
+  )
+
   def check(p: => Boolean): Prop = Prop { (_, _, _) =>
-    if (p) Passed else Falsified("()", 0)
+    if (p) Proved else Falsified("()", 0)
+  }
+
+  val p2 = check {
+    val p = Par.map(Par.unit(1))(_ + 1)
+    val p2 = Par.unit(2)
+    p(ES).get() == p2(ES).get()
   }
 }
 
