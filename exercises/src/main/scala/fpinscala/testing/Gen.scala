@@ -17,7 +17,7 @@ case class Prop(run: (MaxSize, TestCases, RNG) => Result) {
 
   def &&(p: Prop): Prop = Prop {
     case (max, n, rng) => run(max, n, rng) match {
-      case Passed => p.run(max, n, rng)
+      case Passed|Proved => p.run(max, n, rng)
       case x => x
     }
   }
@@ -46,9 +46,15 @@ object Prop {
   sealed trait Result {
     def isFalsified: Boolean
   }
+
   case object Passed extends Result {
     def isFalsified = false
   }
+
+  case object Proved extends Result {
+    def isFalsified = false
+  }
+
   case class Falsified(failure: FailedCase,
                        successes: SuccessCount) extends Result {
     def isFalsified = true
@@ -96,11 +102,12 @@ object Prop {
         println(s"! Falsified after $n passed tests:\n $msg")
       case Passed =>
         println(s"+ OK, passed $testCases tests.")
+      case Proved =>
+        println(s"+ OK, proved property.")
     }
 
-  def check(p: => Boolean): Prop = {
-    lazy val result = p
-    forAll(unit(()))(_ => result)
+  def check(p: => Boolean): Prop = Prop { (_, _, _) =>
+    if (p) Passed else Falsified("()", 0)
   }
 }
 
