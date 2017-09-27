@@ -1,3 +1,3 @@
 import fpinscala.testing.{Gen, Prop}
 
-Prop.run(Gen.sortedProp)
+Prop.run(Prop.p3)

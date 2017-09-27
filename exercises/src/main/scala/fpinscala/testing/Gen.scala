@@ -120,11 +120,49 @@ object Prop {
     val p2 = Par.unit(2)
     p(ES).get() == p2(ES).get()
   }
+
+  def equal[A](p1: Par[A], p2: Par[A]): Par[Boolean] =
+    Par.map2(p1, p2)(_ == _)
+
+  val p3 = check {
+    equal(
+      Par.map(Par.unit(1))(_ + 1),
+      Par.unit(2)
+    )(ES).get()
+  }
+
+  val S = weighted(
+    choose(1, 4).map(Executors.newFixedThreadPool) -> 0.75,
+    unit(Executors.newCachedThreadPool()) -> 0.25
+  )
+
+  def forAllPar[A](g: Gen[A])(f: A => Par[Boolean]): Prop =
+    forAll(S.map2(g)((_, _))) {case (s, a) => f(a)(s).get() }
+
+  def forAllPar2[A](g: Gen[A])(f: A => Par[Boolean]): Prop =
+    forAll(S ** g) {case s ** a => f(a)(s).get() }
+
+  def checkPar(p: Par[Boolean]): Prop =
+    forAllPar(Gen.unit(()))(_ => p)
+
+  val p4 = checkPar {
+    equal(
+      Par.map(Par.unit(1))(_ + 1),
+      Par.unit(2)
+    )
+  }
+}
+
+object ** {
+  def unapply[A, B](p: (A, B)) = Some(p)
 }
 
 case class Gen[+A](sample: State[RNG, A]) {
   def map[B](f: A => B): Gen[B] =
     Gen(sample.map(f))
+
+  def map2[B, C](g: Gen[B])(f: (A, B) => C): Gen[C] =
+    Gen(sample.map2(g.sample)(f))
 
   def flatMap[B](f: A => Gen[B]): Gen[B] =
     Gen(sample.flatMap(x => f(x).sample))
@@ -136,6 +174,9 @@ case class Gen[+A](sample: State[RNG, A]) {
     size.flatMap(s => Gen.listOfN(s, this))
 
   def unsized: SGen[A] = SGen[A] (_ => this)
+
+  def **[B](g: Gen[B]): Gen[(A, B)] =
+    this.map2(g)((_, _))
 }
 
 object Gen {
