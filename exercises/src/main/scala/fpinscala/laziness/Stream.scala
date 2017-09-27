@@ -132,7 +132,7 @@ object Stream {
 
   def constant(n: Int): Stream[Int] = unfold(n)(_ => Some(n, n))
 
-  def from(n: Int): Stream[Int] = unfold(n)(s => Some(s + 1, s + 1))
+  def from(n: Int): Stream[Int] = unfold(n)(s => Some(s, s + 1))
 
   def fibs: Stream[Int] = unfold((1, 1))(s => Some(s._1, (s._2, s._1 + s._2)))
 

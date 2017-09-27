@@ -1,14 +1,5 @@
-import fpinscala.state.RNG.Simple
-import fpinscala.testing.Gen._
+import fpinscala.testing.{Gen, Prop}
 
-choose(1, 10).sample.run(Simple(1012))
+Prop.run(Gen.sortedProp)
 
-unit(10).sample.run(Simple(100))
-
-boolean.sample.run(Simple(10))
-
-listOfN(5, boolean).sample.run(Simple(101))
-
-val u = union(choose(1, 3), choose(10, 12))
-
-listOfN(10, u).sample.run(Simple(100))
+List(8, 8, 8, 5).sorted
