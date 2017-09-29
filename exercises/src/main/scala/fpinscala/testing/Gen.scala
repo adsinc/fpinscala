@@ -8,6 +8,8 @@ import Gen._
 import Prop._
 import java.util.concurrent.{ExecutorService, Executors}
 
+import fpinscala.state.RNG.Simple
+
 /*
 The library developed in this chapter goes through several iterations. This file is just the
 shell, which you can fill in and modify while working through the chapter.
@@ -145,12 +147,17 @@ object Prop {
   def checkPar(p: Par[Boolean]): Prop =
     forAllPar(Gen.unit(()))(_ => p)
 
-  val p4 = checkPar {
+  val p3_1 = checkPar {
     equal(
       Par.map(Par.unit(1))(_ + 1),
       Par.unit(2)
     )
   }
+
+  val pint = Gen.choose(0, 10) map Par.unit
+  val p4 = forAllPar(pint)(n => equal(Par.map(n)(y => y), n))
+
+  val p5 = forAllPar(pint)(n => equal(Par.fork(n), n) )
 }
 
 object ** {
@@ -225,6 +232,20 @@ object Gen {
     val sorted = xs.sorted
     sorted.isEmpty || sorted.tail.isEmpty || !sorted.zip(sorted.tail).exists {case (a, b) => a > b }
   }
+
+  def genStringIntFn(g: Gen[Int]): Gen[String => Int] = Gen(
+    State {rng =>
+      val (seed, rng2) = rng.nextInt
+      val f = (s: String) => g.sample.run(RNG.Simple(seed.toLong ^ s.hashCode.toLong))._1
+      (f, rng2)
+    }
+  )
+
+  def fn[A,B](in: Cogen[A])(out: Gen[B]): Gen[A => B] = ???
+}
+
+trait Cogen[-A] {
+  def sample(a: A, rng: RNG): RNG
 }
 
 case class SGen[+A](g: Int => Gen[A]) {
