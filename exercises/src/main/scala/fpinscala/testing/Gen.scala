@@ -241,11 +241,24 @@ object Gen {
     }
   )
 
-  def fn[A,B](in: Cogen[A])(out: Gen[B]): Gen[A => B] = ???
-}
+  val takeDropProp = {
+    val gen = SGen(s => smallInt.map2(Gen.listOf(smallInt)(s))(_ -> _))
+    forAll(gen) { case (n, xs) =>
+      val taken = xs.take(n)
+      val dropped = xs.drop(n)
+      taken.length == ((n max 0) min xs.length) &&
+        dropped.length == ((xs.length - (n max 0)) max 0) &&
+        taken ++ dropped == xs
+    }
+  }
 
-trait Cogen[-A] {
-  def sample(a: A, rng: RNG): RNG
+  val opSeqProp = {
+    import fpinscala.errorhandling._
+    forAll(Gen.listOf(smallInt)) { xs =>
+      val optList: List[Option[Int]] = xs.map(Some(_))
+      Option.sequence(optList) == Some[List[Int]](xs)
+    }
+  }
 }
 
 case class SGen[+A](g: Int => Gen[A]) {
