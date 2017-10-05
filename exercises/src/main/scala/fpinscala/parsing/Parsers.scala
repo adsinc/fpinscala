@@ -60,9 +60,9 @@ trait Parsers[ParseError, Parser[+ _]] {
 
   def flatMap[A, B](p: Parser[A])(f: A => Parser[B]): Parser[B]
 
-  def regex[A](r: Regex): Parser[A]
+  def regex[A](r: Regex): Parser[String]
 
-  val numCharParser = flatMap(regex("\\d+".r))(listOfN(_, char('a')))
+  val numCharParser = flatMap(regex("\\d+".r))(n => listOfN(n.toInt, char('a')))
 
   case class ParserOps[A](p: Parser[A]) {
     def |[B >: A](p2: Parser[B]): Parser[B] = self.or(p, p2)
@@ -99,6 +99,56 @@ trait Parsers[ParseError, Parser[+ _]] {
     def productLaw[A, B](a: Parser[A], b: Parser[B])(in: Gen[String]): Prop = {
       Prop.forAll(in)(s => run(a ** b)(s) == Right((a, b)))
     }
+  }
+}
+
+trait JSON
+
+object JSON {
+
+  case object JNull extends JSON
+
+  case class JNumber(get: Double) extends JSON
+
+  case class JString(get: String) extends JSON
+
+  case class JBool(get: Boolean) extends JSON
+
+  case class JArray(get: IndexedSeq[JSON]) extends JSON
+
+  case class JObject(get: Map[String, JSON]) extends JSON
+
+  def jsonParser[Err, Parser[+ _]](P: Parsers[Err, Parser]): Parser[JSON] = {
+    import P._
+
+    val space = char(' ')
+    val digit = regex("\\d".r)
+
+    val letter = regex("[a-zA-Z]".r)
+
+    val jBoolP: Parser[JBool] = string("true") or string("false") map (s => JBool(s.toBoolean))
+
+    val jStringP: Parser[JString] =
+      (char('"') ** regex("\\s+".r) ** char('"')) map { case (_, (s, _)) => JString(s) }
+
+    val jNumber: Parser[JNumber] = ???
+
+    val array: Parser[JArray] = {
+      char('[') ** ??? ** char(']')
+      ???
+    }
+
+    val node: Parser[JObject] = {
+      char('{') ** ??? ** char('}')
+      ???
+    }
+
+    val entry = {
+      string("")
+    }
+
+    val json = array or node
+    json
   }
 }
 
