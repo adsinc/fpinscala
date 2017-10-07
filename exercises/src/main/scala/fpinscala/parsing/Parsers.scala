@@ -1,8 +1,10 @@
 package fpinscala.parsing
 
+import java.util.regex.Pattern
+
 import fpinscala.testing._
 
-import scala.language.higherKinds
+import scala.language.{higherKinds, implicitConversions}
 import scala.util.matching.Regex
 
 trait Parsers[ParseError, Parser[+ _]] {
@@ -60,7 +62,7 @@ trait Parsers[ParseError, Parser[+ _]] {
 
   def flatMap[A, B](p: Parser[A])(f: A => Parser[B]): Parser[B]
 
-  def regex[A](r: Regex): Parser[String]
+  implicit def regex[A](r: Regex): Parser[String]
 
   def skipL[A](l: Parser[Any], r: Parser[A]): Parser[A] =
     map2(l, r)((_, r) => r)
@@ -77,37 +79,33 @@ trait Parsers[ParseError, Parser[+ _]] {
   def split[A, B](a: Parser[A], sep: Parser[B]): Parser[List[A]] =
     split1(a, sep) or succeed(List())
 
-  def quoted: Parser[String] = between("\"", "\"")(regex("\\s*".r))
+  def thru(s: String): Parser[String] = (".*?" + Pattern.quote(s)).r
+
+  def quoted: Parser[String] = "\"" *> thru("\"") map (_.dropRight(1))
 
   def double: Parser[Double] =
-    regex("[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?".r) map (_.toDouble)
+    "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?".r map (_.toDouble)
+
+  def whiteSpace: Parser[String] = "\\s+".r
+
+  def token[A](p: Parser[A]) = p <* whiteSpace
 
   case class ParserOps[A](p: Parser[A]) {
     def |[B >: A](p2: Parser[B]): Parser[B] = self.or(p, p2)
-
     def or[B >: A](p2: Parser[B]): Parser[B] = self.or(p, p2)
-
     def many: Parser[List[A]] = self.many(p)
-
     def map[B](f: A => B): Parser[B] = self.map(p)(f)
-
     def slice: Parser[String] = self.slice(p)
-
     def many1: Parser[List[A]] = self.many1(p)
-
     def product[B](p2: Parser[B]): Parser[(A, B)] = self.product(p, p2)
-
     def **[B](p2: Parser[B]): Parser[(A, B)] = self.product(p, p2)
-
     def map2[B, C](p2: Parser[B])(f: (A, B) => C): Parser[C] = self.map2(p, p2)(f)
-
     def flatMap[B](f: A => Parser[B]): Parser[B] = self.flatMap(p)(f)
-
     def *>[B](p2: Parser[B]): Parser[B] = self.skipL(p, p2)
-
     def <*(p2: Parser[Any]): Parser[A] = self.skipR(p, p2)
-
     def split(sep: String): Parser[List[A]] = self.split(p, sep)
+
+    def token: Parser[A] = self.token(p)
   }
 
   object Laws {
@@ -157,16 +155,15 @@ object JSON {
 
     def bool: Parser[JBool] = "true" | "false" map (_.toBoolean) map JBool
 
-    def literal: Parser[JSON] = {
-      (string("null") map (_ => JNull)) |
+    def literal: Parser[JSON] =
+      "null".token.map(_ => JNull) |
         double.map(JNumber) |
         quoted.map(JString) |
         bool
-    }
 
     def value: Parser[JSON] = literal | obj | array
 
-    value
+    whiteSpace *> (obj | array)
   }
 }
 
