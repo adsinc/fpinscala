@@ -62,7 +62,25 @@ trait Parsers[ParseError, Parser[+ _]] {
 
   def regex[A](r: Regex): Parser[String]
 
-  val numCharParser = flatMap(regex("\\d+".r))(n => listOfN(n.toInt, char('a')))
+  def skipL[A](l: Parser[Any], r: Parser[A]): Parser[A] =
+    map2(l, r)((_, r) => r)
+
+  def skipR[A](l: Parser[A], r: Parser[Any]): Parser[A] =
+    map2(l, r)((l, _) => l)
+
+  def between[A](l: Parser[Any], r: Parser[Any])(p: => Parser[A]): Parser[A] =
+    l *> p <* r
+
+  def split1[A, B](p: Parser[A], sep: Parser[B]): Parser[List[A]] =
+    map2(p, many(sep *> p))(_ :: _)
+
+  def split[A, B](a: Parser[A], sep: Parser[B]): Parser[List[A]] =
+    split1(a, sep) or succeed(List())
+
+  def quoted: Parser[String] = between("\"", "\"")(regex("\\s*".r))
+
+  def double: Parser[Double] =
+    regex("[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?".r) map (_.toDouble)
 
   case class ParserOps[A](p: Parser[A]) {
     def |[B >: A](p2: Parser[B]): Parser[B] = self.or(p, p2)
@@ -84,6 +102,12 @@ trait Parsers[ParseError, Parser[+ _]] {
     def map2[B, C](p2: Parser[B])(f: (A, B) => C): Parser[C] = self.map2(p, p2)(f)
 
     def flatMap[B](f: A => Parser[B]): Parser[B] = self.flatMap(p)(f)
+
+    def *>[B](p2: Parser[B]): Parser[B] = self.skipL(p, p2)
+
+    def <*(p2: Parser[Any]): Parser[A] = self.skipR(p, p2)
+
+    def split(sep: String): Parser[List[A]] = self.split(p, sep)
   }
 
   object Laws {
@@ -121,34 +145,28 @@ object JSON {
   def jsonParser[Err, Parser[+ _]](P: Parsers[Err, Parser]): Parser[JSON] = {
     import P._
 
-    val space = char(' ')
-    val digit = regex("\\d".r)
+    def array: Parser[JArray] = between("[", "]")(
+      value split "," map (_.toIndexedSeq) map JArray
+    )
 
-    val letter = regex("[a-zA-Z]".r)
+    def obj: Parser[JObject] = between("{", "}")(
+      entry split "," map (_.toMap) map JObject
+    )
 
-    val jBoolP: Parser[JBool] = string("true") or string("false") map (s => JBool(s.toBoolean))
+    def entry: Parser[(String, JSON)] = quoted ** (":" *> value)
 
-    val jStringP: Parser[JString] =
-      (char('"') ** regex("\\s+".r) ** char('"')) map { case (_, (s, _)) => JString(s) }
+    def bool: Parser[JBool] = "true" | "false" map (_.toBoolean) map JBool
 
-    val jNumber: Parser[JNumber] = ???
-
-    val array: Parser[JArray] = {
-      char('[') ** ??? ** char(']')
-      ???
+    def literal: Parser[JSON] = {
+      (string("null") map (_ => JNull)) |
+        double.map(JNumber) |
+        quoted.map(JString) |
+        bool
     }
 
-    val node: Parser[JObject] = {
-      char('{') ** ??? ** char('}')
-      ???
-    }
+    def value: Parser[JSON] = literal | obj | array
 
-    val entry = {
-      string("")
-    }
-
-    val json = array or node
-    json
+    value
   }
 }
 
