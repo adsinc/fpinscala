@@ -1,14 +1,13 @@
 package fpinscala.testing
 
-import fpinscala.state._
-import fpinscala.parallelism._
-import fpinscala.laziness._
-import fpinscala.parallelism.Par.Par
-import Gen._
-import Prop._
 import java.util.concurrent.{ExecutorService, Executors}
 
-import fpinscala.state.RNG.Simple
+import fpinscala.laziness._
+import fpinscala.parallelism.Par.Par
+import fpinscala.parallelism._
+import fpinscala.state._
+import fpinscala.testing.Gen._
+import fpinscala.testing.Prop._
 
 /*
 The library developed in this chapter goes through several iterations. This file is just the
@@ -259,6 +258,11 @@ object Gen {
       Option.sequence(optList) == Some[List[Int]](xs)
     }
   }
+
+  def stringN(n: Int): Gen[String] =
+    listOfN(n, choose(0, 127)).map(_.map(_.toChar).mkString)
+
+  val string: SGen[String] = SGen(stringN)
 }
 
 case class SGen[+A](g: Int => Gen[A]) {
@@ -272,4 +276,7 @@ case class SGen[+A](g: Int => Gen[A]) {
   def flatMap[B](f: A => SGen[B]): SGen[B] = SGen {
     n => g(n).flatMap(a => f(a).g(n))
   }
+
+  def **[B](s2: SGen[B]): SGen[(A, B)] =
+    SGen(n => apply(n) ** s2(n))
 }

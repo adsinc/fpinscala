@@ -7,7 +7,7 @@ import fpinscala.testing._
 import scala.language.{higherKinds, implicitConversions}
 import scala.util.matching.Regex
 
-trait Parsers[ParseError, Parser[+ _]] {
+trait Parsers[Parser[+ _]] {
   self => // so inner classes may call methods of trait
 
   def run[A](p: Parser[A])(input: String): Either[ParseError, A]
@@ -88,7 +88,15 @@ trait Parsers[ParseError, Parser[+ _]] {
 
   def whiteSpace: Parser[String] = "\\s+".r
 
-  def token[A](p: Parser[A]) = p <* whiteSpace
+  def token[A](p: Parser[A]): Parser[A] = p <* whiteSpace
+
+  def label[A](msg: String)(p: Parser[A]): Parser[A]
+
+  def errorLocation(e: ParseError): Location
+
+  def errorMessage(e: ParseError): String
+
+  def scope[A](msg: String)(p: Parser[A]): Parser[A]
 
   case class ParserOps[A](p: Parser[A]) {
     def |[B >: A](p2: Parser[B]): Parser[B] = self.or(p, p2)
@@ -121,6 +129,14 @@ trait Parsers[ParseError, Parser[+ _]] {
     def productLaw[A, B](a: Parser[A], b: Parser[B])(in: Gen[String]): Prop = {
       Prop.forAll(in)(s => run(a ** b)(s) == Right((a, b)))
     }
+
+    def labelLaw[A](p: Parser[A], inputs: SGen[String]): Prop =
+      Prop.forAll(inputs ** Gen.string) { case (input, msg) =>
+        run(label(msg)(p))(input) match {
+          case Left(e) => errorMessage(e) == msg
+          case _ => true
+        }
+      }
   }
 }
 
@@ -140,7 +156,7 @@ object JSON {
 
   case class JObject(get: Map[String, JSON]) extends JSON
 
-  def jsonParser[Err, Parser[+ _]](P: Parsers[Err, Parser]): Parser[JSON] = {
+  def jsonParser[Err, Parser[+ _]](P: Parsers[Parser]): Parser[JSON] = {
     import P._
 
     def array: Parser[JArray] = between("[", "]")(
@@ -170,7 +186,10 @@ object JSON {
 case class Location(input: String, offset: Int = 0) {
 
   lazy val line = input.slice(0,offset+1).count(_ == '\n') + 1
-  lazy val col = input.slice(0,offset+1).reverse.indexOf('\n')
+  lazy val col = input.slice(0, offset + 1).lastIndexOf('\n') match {
+    case -1 => offset + 1
+    case lineStart => offset - lineStart
+  }
 
   def toError(msg: String): ParseError =
     ParseError(List((this, msg)))
