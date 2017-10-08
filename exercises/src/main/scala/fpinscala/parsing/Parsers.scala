@@ -81,10 +81,13 @@ trait Parsers[Parser[+ _]] {
 
   def thru(s: String): Parser[String] = (".*?" + Pattern.quote(s)).r
 
-  def quoted: Parser[String] = "\"" *> thru("\"") map (_.dropRight(1))
+  private def quoted: Parser[String] = "\"" *> thru("\"") map (_.dropRight(1))
+
+  def escapedQuoted: Parser[String] =
+    token(quoted label "string literal")
 
   def double: Parser[Double] =
-    "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?".r map (_.toDouble)
+    "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?".r map (_.toDouble) label "double literal"
 
   def whiteSpace: Parser[String] = "\\s+".r
 
@@ -97,6 +100,8 @@ trait Parsers[Parser[+ _]] {
   def errorMessage(e: ParseError): String
 
   def scope[A](msg: String)(p: Parser[A]): Parser[A]
+
+  def attempt[A](p: Parser[A]): Parser[A]
 
   case class ParserOps[A](p: Parser[A]) {
     def |[B >: A](p2: Parser[B]): Parser[B] = self.or(p, p2)
@@ -112,8 +117,11 @@ trait Parsers[Parser[+ _]] {
     def *>[B](p2: Parser[B]): Parser[B] = self.skipL(p, p2)
     def <*(p2: Parser[Any]): Parser[A] = self.skipR(p, p2)
     def split(sep: String): Parser[List[A]] = self.split(p, sep)
-
     def token: Parser[A] = self.token(p)
+
+    def scope(msg: String): Parser[A] = self.scope(msg)(p)
+
+    def label(msg: String): Parser[A] = self.label(msg)(p)
   }
 
   object Laws {
@@ -160,25 +168,22 @@ object JSON {
     import P._
 
     def array: Parser[JArray] = between("[", "]")(
-      value split "," map (_.toIndexedSeq) map JArray
+      value split "," map (_.toIndexedSeq) map JArray scope "array"
     )
-
     def obj: Parser[JObject] = between("{", "}")(
-      entry split "," map (_.toMap) map JObject
+      entry split "," map (_.toMap) map JObject scope "object"
     )
 
-    def entry: Parser[(String, JSON)] = quoted ** (":" *> value)
-
+    def entry: Parser[(String, JSON)] = escapedQuoted ** (":" *> value)
     def bool: Parser[JBool] = "true" | "false" map (_.toBoolean) map JBool
 
-    def literal: Parser[JSON] =
+    def literal: Parser[JSON] = scope("literal")(
       "null".token.map(_ => JNull) |
         double.map(JNumber) |
-        quoted.map(JString) |
+        escapedQuoted.map(JString) |
         bool
-
+    )
     def value: Parser[JSON] = literal | obj | array
-
     whiteSpace *> (obj | array)
   }
 }
