@@ -210,3 +210,37 @@ case class Location(input: String, offset: Int = 0) {
 case class ParseError(stack: List[(Location,String)] = List(),
                       otherFailures: List[ParseError] = List()) {
 }
+
+case class MyParser[+A](parse: String => Either[ParseError, A])
+
+object MyParsers extends Parsers[MyParser] {
+
+  override def run[A](p: MyParser[A])(input: String): Either[ParseError, A] = ???
+
+  override def or[A](s1: MyParser[A], s2: => MyParser[A]): MyParser[A] = ???
+
+  implicit def string(s: String): MyParser[String] = MyParser[String] { input =>
+    if (s == input) Right(s)
+    else Left(ParseError(
+      stack = List(Location(input) -> s"Expected $s, actual $input")
+    ))
+  }
+
+  override def wrap[A](p: => MyParser[A]): MyParser[A] = ???
+
+  override def slice[A](p: MyParser[A]): MyParser[String] = ???
+
+  override def flatMap[A, B](p: MyParser[A])(f: A => MyParser[B]): MyParser[B] = ???
+
+  override implicit def regex[A](r: Regex): MyParser[String] = ???
+
+  override def label[A](msg: String)(p: MyParser[A]): MyParser[A] = ???
+
+  override def errorLocation(e: ParseError): Location = ???
+
+  override def errorMessage(e: ParseError): String = ???
+
+  override def scope[A](msg: String)(p: MyParser[A]): MyParser[A] = ???
+
+  override def attempt[A](p: MyParser[A]): MyParser[A] = ???
+}
