@@ -219,10 +219,17 @@ object MyParsers extends Parsers[MyParser] {
 
   override def or[A](s1: MyParser[A], s2: => MyParser[A]): MyParser[A] = ???
 
-  implicit def string(s: String): MyParser[String] = MyParser[String] { input =>
+  implicit def string(s: String): MyParser[String] = MyParser { input =>
     if (s == input) Right(s)
     else Left(ParseError(
       stack = List(Location(input) -> s"Expected $s, actual $input")
+    ))
+  }
+
+  override implicit def regex[A](r: Regex): MyParser[String] = MyParser {
+    case input@r() => Right(input)
+    case input => Left(ParseError(
+      stack = List(Location(input) -> s"Unknown token $input")
     ))
   }
 
@@ -231,8 +238,6 @@ object MyParsers extends Parsers[MyParser] {
   override def slice[A](p: MyParser[A]): MyParser[String] = ???
 
   override def flatMap[A, B](p: MyParser[A])(f: A => MyParser[B]): MyParser[B] = ???
-
-  override implicit def regex[A](r: Regex): MyParser[String] = ???
 
   override def label[A](msg: String)(p: MyParser[A]): MyParser[A] = ???
 
