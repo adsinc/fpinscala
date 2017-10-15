@@ -233,9 +233,9 @@ case class MyParser[+A](parse: String => Either[ParseError, A])
 
 object MyParsers extends Parsers[MyParser] {
 
-  override def run[A](p: MyParser[A])(input: String): Either[ParseError, A] = ???
+  def run[A](p: MyParser[A])(input: String): Either[ParseError, A] = ???
 
-  override def or[A](s1: MyParser[A], s2: => MyParser[A]): MyParser[A] = ???
+  def or[A](s1: MyParser[A], s2: => MyParser[A]): MyParser[A] = ???
 
   implicit def string(s: String): MyParser[String] = MyParser { input =>
     if (s == input) Right(s)
@@ -244,31 +244,36 @@ object MyParsers extends Parsers[MyParser] {
     ))
   }
 
-  override implicit def regex[A](r: Regex): MyParser[String] = MyParser {
+  implicit def regex[A](r: Regex): MyParser[String] = MyParser {
     case input@r() => Right(input)
     case input => Left(ParseError(
       stack = List(Location(input) -> s"Unknown token $input")
     ))
   }
 
-  override def slice[A](p: MyParser[A]): MyParser[String] = MyParser { input =>
+  def slice[A](p: MyParser[A]): MyParser[String] = MyParser { input =>
+    p parse input map (_ => input)
+  }
+
+  def label[A](msg: String)(p: MyParser[A]): MyParser[A] = MyParser { input =>
     p parse input match {
-      case Right(_) => Right(input)
-      case Left(error) => Left(error)
+      case Left(error) =>
+        val stack = error.stack
+        val newStack = (stack.head._1, msg) :: stack.tail
+        Left(error.copy(stack = newStack))
+      case r => r
     }
   }
 
-  override def wrap[A](p: => MyParser[A]): MyParser[A] = ???
+  def wrap[A](p: => MyParser[A]): MyParser[A] = ???
 
-  override def flatMap[A, B](p: MyParser[A])(f: A => MyParser[B]): MyParser[B] = ???
+  def flatMap[A, B](p: MyParser[A])(f: A => MyParser[B]): MyParser[B] = ???
 
-  override def label[A](msg: String)(p: MyParser[A]): MyParser[A] = ???
+  def errorLocation(e: ParseError): Location = ???
 
-  override def errorLocation(e: ParseError): Location = ???
+  def errorMessage(e: ParseError): String = ???
 
-  override def errorMessage(e: ParseError): String = ???
+  def scope[A](msg: String)(p: MyParser[A]): MyParser[A] = ???
 
-  override def scope[A](msg: String)(p: MyParser[A]): MyParser[A] = ???
-
-  override def attempt[A](p: MyParser[A]): MyParser[A] = ???
+  def attempt[A](p: MyParser[A]): MyParser[A] = ???
 }
