@@ -233,9 +233,15 @@ object MyParsers extends Parsers[MyParser] {
     ))
   }
 
-  override def wrap[A](p: => MyParser[A]): MyParser[A] = ???
+  override def slice[A](p: MyParser[A]): MyParser[String] = MyParser {
+    input =>
+      p parse input match {
+        case Right(_) => Right(input)
+        case Left(error) => Left(error)
+      }
+  }
 
-  override def slice[A](p: MyParser[A]): MyParser[String] = ???
+  override def wrap[A](p: => MyParser[A]): MyParser[A] = ???
 
   override def flatMap[A, B](p: MyParser[A])(f: A => MyParser[B]): MyParser[B] = ???
 
