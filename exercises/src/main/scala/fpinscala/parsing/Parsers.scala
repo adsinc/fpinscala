@@ -105,18 +105,31 @@ trait Parsers[Parser[+ _]] {
 
   case class ParserOps[A](p: Parser[A]) {
     def |[B >: A](p2: Parser[B]): Parser[B] = self.or(p, p2)
+
     def or[B >: A](p2: Parser[B]): Parser[B] = self.or(p, p2)
+
     def many: Parser[List[A]] = self.many(p)
+
     def map[B](f: A => B): Parser[B] = self.map(p)(f)
+
     def slice: Parser[String] = self.slice(p)
+
     def many1: Parser[List[A]] = self.many1(p)
+
     def product[B](p2: Parser[B]): Parser[(A, B)] = self.product(p, p2)
+
     def **[B](p2: Parser[B]): Parser[(A, B)] = self.product(p, p2)
+
     def map2[B, C](p2: Parser[B])(f: (A, B) => C): Parser[C] = self.map2(p, p2)(f)
+
     def flatMap[B](f: A => Parser[B]): Parser[B] = self.flatMap(p)(f)
+
     def *>[B](p2: Parser[B]): Parser[B] = self.skipL(p, p2)
+
     def <*(p2: Parser[Any]): Parser[A] = self.skipR(p, p2)
+
     def split(sep: String): Parser[List[A]] = self.split(p, sep)
+
     def token: Parser[A] = self.token(p)
 
     def scope(msg: String): Parser[A] = self.scope(msg)(p)
@@ -146,6 +159,7 @@ trait Parsers[Parser[+ _]] {
         }
       }
   }
+
 }
 
 trait JSON
@@ -170,11 +184,13 @@ object JSON {
     def array: Parser[JArray] = between("[", "]")(
       value split "," map (_.toIndexedSeq) map JArray scope "array"
     )
+
     def obj: Parser[JObject] = between("{", "}")(
       entry split "," map (_.toMap) map JObject scope "object"
     )
 
     def entry: Parser[(String, JSON)] = escapedQuoted ** (":" *> value)
+
     def bool: Parser[JBool] = "true" | "false" map (_.toBoolean) map JBool
 
     def literal: Parser[JSON] = scope("literal")(
@@ -183,14 +199,16 @@ object JSON {
         escapedQuoted.map(JString) |
         bool
     )
+
     def value: Parser[JSON] = literal | obj | array
+
     whiteSpace *> (obj | array)
   }
 }
 
 case class Location(input: String, offset: Int = 0) {
 
-  lazy val line = input.slice(0,offset+1).count(_ == '\n') + 1
+  lazy val line = input.slice(0, offset + 1).count(_ == '\n') + 1
   lazy val col = input.slice(0, offset + 1).lastIndexOf('\n') match {
     case -1 => offset + 1
     case lineStart => offset - lineStart
@@ -199,15 +217,15 @@ case class Location(input: String, offset: Int = 0) {
   def toError(msg: String): ParseError =
     ParseError(List((this, msg)))
 
-  def advanceBy(n: Int) = copy(offset = offset+n)
+  def advanceBy(n: Int) = copy(offset = offset + n)
 
   /* Returns the line corresponding to this location */
-  def currentLine: String = 
-    if (input.length > 1) input.lines.drop(line-1).next
+  def currentLine: String =
+    if (input.length > 1) input.lines.drop(line - 1).next
     else ""
 }
 
-case class ParseError(stack: List[(Location,String)] = List(),
+case class ParseError(stack: List[(Location, String)] = List(),
                       otherFailures: List[ParseError] = List()) {
 }
 
@@ -233,12 +251,11 @@ object MyParsers extends Parsers[MyParser] {
     ))
   }
 
-  override def slice[A](p: MyParser[A]): MyParser[String] = MyParser {
-    input =>
-      p parse input match {
-        case Right(_) => Right(input)
-        case Left(error) => Left(error)
-      }
+  override def slice[A](p: MyParser[A]): MyParser[String] = MyParser { input =>
+    p parse input match {
+      case Right(_) => Right(input)
+      case Left(error) => Left(error)
+    }
   }
 
   override def wrap[A](p: => MyParser[A]): MyParser[A] = ???
