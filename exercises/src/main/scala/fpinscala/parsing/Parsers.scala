@@ -265,6 +265,16 @@ object MyParsers extends Parsers[MyParser] {
     }
   }
 
+  def scope[A](msg: String)(p: MyParser[A]): MyParser[A] = MyParser { input =>
+    p parse input match {
+      case Left(error) =>
+        val stack = error.stack
+        val newStack = (stack.head._1, msg) :: stack
+        Left(error.copy(stack = newStack))
+      case r => r
+    }
+  }
+
   def wrap[A](p: => MyParser[A]): MyParser[A] = ???
 
   def flatMap[A, B](p: MyParser[A])(f: A => MyParser[B]): MyParser[B] = ???
@@ -272,8 +282,6 @@ object MyParsers extends Parsers[MyParser] {
   def errorLocation(e: ParseError): Location = ???
 
   def errorMessage(e: ParseError): String = ???
-
-  def scope[A](msg: String)(p: MyParser[A]): MyParser[A] = ???
 
   def attempt[A](p: MyParser[A]): MyParser[A] = ???
 }
