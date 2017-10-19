@@ -234,10 +234,10 @@ object MyParsers extends Parsers[MyParser] {
   def run[A](p: MyParser[A])(input: String): Either[ParseError, A] = ???
 
   implicit def string(s: String): MyParser[String] = MyParser { input =>
-    if (s == input) Right(s)
-    else Left(ParseError(
-      stack = List(Location(input) -> s"Expected $s, actual $input")
-    ))
+    if (s == input)
+      Right(s)
+    else
+      Left(Location(input).toError(s"Expected $s, actual $input"))
   }
 
   implicit def regex[A](r: Regex): MyParser[String] = MyParser {
@@ -288,3 +288,39 @@ object MyParsers extends Parsers[MyParser] {
 
   def errorMessage(e: ParseError): String = ???
 }
+
+object Impl1 {
+
+  type Parser[+A] = String => Either[ParseError, A]
+
+  object ParserImpl1 extends Parsers[Parser] {
+
+    def run[A](p: Parser[A])(input: String): Either[ParseError, A] = ???
+
+    implicit def string(s: String): Parser[String] = input =>
+      if (input startsWith s)
+        Right(s)
+      else
+        Left(Location(input).toError(s"Expected: $s"))
+
+    def or[A](s1: Parser[A], s2: => Parser[A]): Parser[A] = ???
+
+    def slice[A](p: Parser[A]): Parser[String] = ???
+
+    def flatMap[A, B](p: Parser[A])(f: A => Parser[B]): Parser[B] = ???
+
+    implicit def regex[A](r: Regex): Parser[String] = ???
+
+    def label[A](msg: String)(p: Parser[A]): Parser[A] = ???
+
+    def errorLocation(e: ParseError): Location = ???
+
+    def errorMessage(e: ParseError): String = ???
+
+    def scope[A](msg: String)(p: Parser[A]): Parser[A] = ???
+
+    def attempt[A](p: Parser[A]): Parser[A] = ???
+  }
+
+}
+
