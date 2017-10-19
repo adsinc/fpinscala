@@ -235,8 +235,6 @@ object MyParsers extends Parsers[MyParser] {
 
   def run[A](p: MyParser[A])(input: String): Either[ParseError, A] = ???
 
-  def or[A](s1: MyParser[A], s2: => MyParser[A]): MyParser[A] = ???
-
   implicit def string(s: String): MyParser[String] = MyParser { input =>
     if (s == input) Right(s)
     else Left(ParseError(
@@ -275,13 +273,17 @@ object MyParsers extends Parsers[MyParser] {
     }
   }
 
-  def wrap[A](p: => MyParser[A]): MyParser[A] = ???
+  def flatMap[A, B](p: MyParser[A])(f: A => MyParser[B]): MyParser[B] = MyParser[B] { input =>
+    (p parse input) flatMap (a => f(a) parse input)
+  }
 
-  def flatMap[A, B](p: MyParser[A])(f: A => MyParser[B]): MyParser[B] = ???
+  def attempt[A](p: MyParser[A]): MyParser[A] = ???
+
+  def or[A](s1: MyParser[A], s2: => MyParser[A]): MyParser[A] = ???
+
+  def wrap[A](p: => MyParser[A]): MyParser[A] = ???
 
   def errorLocation(e: ParseError): Location = ???
 
   def errorMessage(e: ParseError): String = ???
-
-  def attempt[A](p: MyParser[A]): MyParser[A] = ???
 }
