@@ -29,10 +29,8 @@ trait Parsers[Parser[+ _]] {
     (p map2 p1) (_ :: _)
   }
 
-  def wrap[A](p: => Parser[A]): Parser[A]
-
   def many[A](p: Parser[A]): Parser[List[A]] =
-    (p map2 wrap(many(p))) (_ :: _) or succeed(List.empty)
+    (p map2 many(p)) (_ :: _) or succeed(List.empty)
 
   def map[A, B](a: Parser[A])(f: A => B): Parser[B] =
     a flatMap (av => succeed(f(av)))
@@ -279,9 +277,12 @@ object MyParsers extends Parsers[MyParser] {
 
   def attempt[A](p: MyParser[A]): MyParser[A] = ???
 
-  def or[A](s1: MyParser[A], s2: => MyParser[A]): MyParser[A] = ???
-
-  def wrap[A](p: => MyParser[A]): MyParser[A] = ???
+  def or[A](s1: MyParser[A], s2: => MyParser[A]): MyParser[A] = MyParser { input =>
+    s1 parse input match {
+      case Left(_) => s2 parse input
+      case a@_ => a
+    }
+  }
 
   def errorLocation(e: ParseError): Location = ???
 
