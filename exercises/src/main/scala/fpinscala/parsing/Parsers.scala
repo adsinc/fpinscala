@@ -225,6 +225,9 @@ case class Location(input: String, offset: Int = 0) {
 
 case class ParseError(stack: List[(Location, String)] = List(),
                       otherFailures: List[ParseError] = List()) {
+
+  def push(loc: Location, msg: String): ParseError =
+    copy(stack = (loc, msg) :: stack)
 }
 
 case class MyParser[+A](parse: String => Either[ParseError, A])
@@ -291,33 +294,62 @@ object MyParsers extends Parsers[MyParser] {
 
 object Impl1 {
 
-  type Parser[+A] = String => Either[ParseError, A]
+  type Parser[+A] = Location => Result[A]
+
+  sealed trait Result[+A] {
+
+    def mapError(f: ParseError => ParseError): Result[A] = this match {
+      case Failure(e) => Failure(f(e))
+      case _ => this
+    }
+
+  }
+
+  case class Success[+A](get: A, charsConsumed: Int) extends Result[A]
+
+  case class Failure[+A](get: ParseError) extends Result[Nothing]
 
   object ParserImpl1 extends Parsers[Parser] {
 
     def run[A](p: Parser[A])(input: String): Either[ParseError, A] = ???
 
-    implicit def string(s: String): Parser[String] = input =>
-      if (input startsWith s)
-        Right(s)
-      else
-        Left(Location(input).toError(s"Expected: $s"))
+    implicit def string(s: String): Parser[String] =
+      location =>
+        if (location.input startsWith s)
+          Success(s, s.length)
+        else
+          Failure(location.toError(s"Expected: $s"))
+
+    implicit def regex[A](r: Regex): Parser[String] =
+      location =>
+        r findPrefixOf location.input match {
+          case Some(p) =>
+            Success(p, p.length)
+          case None =>
+            Failure(location.toError(s"Unknown token ${location.input}"))
+        }
+
+    override def succeed[A](a: A): Parser[A] =
+      _ => Success(a, 0)
+
+    def slice[A](p: Parser[A]): Parser[String] =
+      location => p(location) match {
+        case Success(s, _) => Success(s.toString, 0)
+        case f@Failure(_) => f
+      }
+
+    def scope[A](msg: String)(p: Parser[A]): Parser[A] =
+      s => p(s).mapError(_.push(s, msg))
 
     def or[A](s1: Parser[A], s2: => Parser[A]): Parser[A] = ???
 
-    def slice[A](p: Parser[A]): Parser[String] = ???
-
     def flatMap[A, B](p: Parser[A])(f: A => Parser[B]): Parser[B] = ???
-
-    implicit def regex[A](r: Regex): Parser[String] = ???
 
     def label[A](msg: String)(p: Parser[A]): Parser[A] = ???
 
     def errorLocation(e: ParseError): Location = ???
 
     def errorMessage(e: ParseError): String = ???
-
-    def scope[A](msg: String)(p: Parser[A]): Parser[A] = ???
 
     def attempt[A](p: Parser[A]): Parser[A] = ???
   }
