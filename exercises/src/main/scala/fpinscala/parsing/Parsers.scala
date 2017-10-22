@@ -308,15 +308,32 @@ object Impl1 {
   sealed trait Result[+A] {
 
     def mapError(f: ParseError => ParseError): Result[A] = this match {
-      case Failure(e) => Failure(f(e))
+      case Failure(e, isCommitted) => Failure(f(e), isCommitted)
       case _ => this
     }
 
+
+    def uncommit: Result[A] = this match {
+      case Failure(e, true) => Failure(e, isCommitted = false)
+      case _ => this
+    }
+
+    def addCommit(isCommitted: Boolean): Result[A] =
+      this match {
+        case Failure(e, c) => Failure(e, c || isCommitted)
+        case _ => this
+      }
+
+    def advanceSuccess(n: Int): Result[A] = this match {
+      case Success(a, m) => Success(a, n + m)
+      case _ => this
+    }
   }
 
   case class Success[+A](get: A, charsConsumed: Int) extends Result[A]
 
-  case class Failure[+A](get: ParseError) extends Result[Nothing]
+  case class Failure[+A](get: ParseError,
+                         isCommitted: Boolean) extends Result[Nothing]
 
   object ParserImpl1 extends Parsers[Parser] {
 
@@ -356,16 +373,27 @@ object Impl1 {
     def label[A](msg: String)(p: Parser[A]): Parser[A] =
       s => p(s).mapError(_.label(msg))
 
-    def or[A](s1: Parser[A], s2: => Parser[A]): Parser[A] = ???
+    def or[A](s1: Parser[A], s2: => Parser[A]): Parser[A] =
+      s => s1(s) match {
+        case Failure(e, false) => s2(s)
+        case r => r
+      }
 
-    def flatMap[A, B](p: Parser[A])(f: A => Parser[B]): Parser[B] = ???
+    def flatMap[A, B](p: Parser[A])(f: A => Parser[B]): Parser[B] =
+      s => p(s) match {
+        case Success(a, n) => f(a)(s.advanceBy(n))
+          .addCommit(n != 0)
+          .advanceSuccess(n)
+        case e@Failure(_, _) => e
+      }
 
     def errorLocation(e: ParseError): Location = ???
 
     def errorMessage(e: ParseError): String = ???
 
-    def attempt[A](p: Parser[A]): Parser[A] = ???
-  }
+    def attempt[A](p: Parser[A]): Parser[A] =
+      s => p(s).uncommit
 
+  }
 }
 
