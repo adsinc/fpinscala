@@ -228,6 +228,15 @@ case class ParseError(stack: List[(Location, String)] = List(),
 
   def push(loc: Location, msg: String): ParseError =
     copy(stack = (loc, msg) :: stack)
+
+  def label[A](msg: String): ParseError =
+    ParseError(latestLoc.map((_, msg)).toList)
+
+  def latestLoc: Option[Location] =
+    latest map (_._1)
+
+  def latest: Option[(Location, String)] =
+    stack.lastOption
 }
 
 case class MyParser[+A](parse: String => Either[ParseError, A])
@@ -314,6 +323,9 @@ object Impl1 {
     def run[A](p: Parser[A])(input: String): Either[ParseError, A] = ???
 
     implicit def string(s: String): Parser[String] =
+      label(s"Expected: $s")(stringRaw(s))
+
+    def stringRaw(s: String): Parser[String] =
       location =>
         if (location.input startsWith s)
           Success(s, s.length)
@@ -341,11 +353,12 @@ object Impl1 {
     def scope[A](msg: String)(p: Parser[A]): Parser[A] =
       s => p(s).mapError(_.push(s, msg))
 
+    def label[A](msg: String)(p: Parser[A]): Parser[A] =
+      s => p(s).mapError(_.label(msg))
+
     def or[A](s1: Parser[A], s2: => Parser[A]): Parser[A] = ???
 
     def flatMap[A, B](p: Parser[A])(f: A => Parser[B]): Parser[B] = ???
-
-    def label[A](msg: String)(p: Parser[A]): Parser[A] = ???
 
     def errorLocation(e: ParseError): Location = ???
 
