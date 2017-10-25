@@ -93,10 +93,6 @@ trait Parsers[Parser[+ _]] {
 
   def label[A](msg: String)(p: Parser[A]): Parser[A]
 
-  def errorLocation(e: ParseError): Location
-
-  def errorMessage(e: ParseError): String
-
   def scope[A](msg: String)(p: Parser[A]): Parser[A]
 
   def attempt[A](p: Parser[A]): Parser[A]
@@ -148,14 +144,6 @@ trait Parsers[Parser[+ _]] {
     def productLaw[A, B](a: Parser[A], b: Parser[B])(in: Gen[String]): Prop = {
       Prop.forAll(in)(s => run(a ** b)(s) == Right((a, b)))
     }
-
-    def labelLaw[A](p: Parser[A], inputs: SGen[String]): Prop =
-      Prop.forAll(inputs ** Gen.string) { case (input, msg) =>
-        run(label(msg)(p))(input) match {
-          case Left(e) => errorMessage(e) == msg
-          case _ => true
-        }
-      }
   }
 
 }
@@ -333,21 +321,23 @@ object Impl1 {
   case class Success[+A](get: A, charsConsumed: Int) extends Result[A]
 
   case class Failure[+A](get: ParseError,
-                         isCommitted: Boolean) extends Result[Nothing]
+                         isCommitted: Boolean = true) extends Result[Nothing]
 
   object ParserImpl1 extends Parsers[Parser] {
 
     def run[A](p: Parser[A])(input: String): Either[ParseError, A] = ???
 
     implicit def string(s: String): Parser[String] =
-      label(s"Expected: $s")(stringRaw(s))
-
-    def stringRaw(s: String): Parser[String] =
-      location =>
-        if (location.input startsWith s)
+      label(s"Expected: $s") { location =>
+        val noMatchIndex = findNoMatchIndex(s, location.input)
+        if (noMatchIndex == -1)
           Success(s, s.length)
         else
-          Failure(location.toError(s"Expected: $s"))
+          Failure(location.advanceBy(noMatchIndex).toError(s"'$s'"))
+      }
+
+    def findNoMatchIndex(template: String, str: String): Int =
+      template zip str indexWhere (p => p._1 != p._2)
 
     implicit def regex[A](r: Regex): Parser[String] =
       location =>
@@ -363,8 +353,8 @@ object Impl1 {
 
     def slice[A](p: Parser[A]): Parser[String] =
       location => p(location) match {
-        case Success(s, _) => Success(s.toString, 0)
-        case f@Failure(_) => f
+        case Success(_, n) => Success(location.input.substring(location.offset, location.offset + n), n)
+        case f@Failure(_, _) => f
       }
 
     def scope[A](msg: String)(p: Parser[A]): Parser[A] =
@@ -375,7 +365,7 @@ object Impl1 {
 
     def or[A](s1: Parser[A], s2: => Parser[A]): Parser[A] =
       s => s1(s) match {
-        case Failure(e, false) => s2(s)
+        case Failure(_, false) => s2(s)
         case r => r
       }
 
@@ -386,10 +376,6 @@ object Impl1 {
           .advanceSuccess(n)
         case e@Failure(_, _) => e
       }
-
-    def errorLocation(e: ParseError): Location = ???
-
-    def errorMessage(e: ParseError): String = ???
 
     def attempt[A](p: Parser[A]): Parser[A] =
       s => p(s).uncommit
