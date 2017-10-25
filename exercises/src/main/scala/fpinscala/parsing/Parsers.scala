@@ -62,13 +62,13 @@ trait Parsers[Parser[+ _]] {
 
   implicit def regex[A](r: Regex): Parser[String]
 
-  def skipL[A](l: Parser[Any], r: Parser[A]): Parser[A] =
+  def skipL[A](l: Parser[Any], r: => Parser[A]): Parser[A] =
     map2(l, r)((_, r) => r)
 
-  def skipR[A](l: Parser[A], r: Parser[Any]): Parser[A] =
+  def skipR[A](l: Parser[A], r: => Parser[Any]): Parser[A] =
     map2(l, r)((l, _) => l)
 
-  def between[A](l: Parser[Any], r: Parser[Any])(p: => Parser[A]): Parser[A] =
+  def between[A](l: Parser[Any], r: => Parser[Any])(p: => Parser[A]): Parser[A] =
     l *> p <* r
 
   def split1[A, B](p: Parser[A], sep: Parser[B]): Parser[List[A]] =
@@ -87,6 +87,9 @@ trait Parsers[Parser[+ _]] {
   def double: Parser[Double] =
     "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?".r map (_.toDouble) label "double literal"
 
+  def eof: Parser[String] =
+    regex("\\z".r) label "unexpected trailing characters"
+
   def whiteSpace: Parser[String] = "\\s+".r
 
   def token[A](p: Parser[A]): Parser[A] = p <* whiteSpace
@@ -98,9 +101,9 @@ trait Parsers[Parser[+ _]] {
   def attempt[A](p: Parser[A]): Parser[A]
 
   case class ParserOps[A](p: Parser[A]) {
-    def |[B >: A](p2: Parser[B]): Parser[B] = self.or(p, p2)
+    def |[B >: A](p2: => Parser[B]): Parser[B] = self.or(p, p2)
 
-    def or[B >: A](p2: Parser[B]): Parser[B] = self.or(p, p2)
+    def or[B >: A](p2: => Parser[B]): Parser[B] = self.or(p, p2)
 
     def many: Parser[List[A]] = self.many(p)
 
@@ -112,15 +115,15 @@ trait Parsers[Parser[+ _]] {
 
     def product[B](p2: Parser[B]): Parser[(A, B)] = self.product(p, p2)
 
-    def **[B](p2: Parser[B]): Parser[(A, B)] = self.product(p, p2)
+    def **[B](p2: => Parser[B]): Parser[(A, B)] = self.product(p, p2)
 
     def map2[B, C](p2: Parser[B])(f: (A, B) => C): Parser[C] = self.map2(p, p2)(f)
 
     def flatMap[B](f: A => Parser[B]): Parser[B] = self.flatMap(p)(f)
 
-    def *>[B](p2: Parser[B]): Parser[B] = self.skipL(p, p2)
+    def *>[B](p2: => Parser[B]): Parser[B] = self.skipL(p, p2)
 
-    def <*(p2: Parser[Any]): Parser[A] = self.skipR(p, p2)
+    def <*(p2: => Parser[Any]): Parser[A] = self.skipR(p, p2)
 
     def split(sep: String): Parser[List[A]] = self.split(p, sep)
 
@@ -188,7 +191,7 @@ object JSON {
 
     def value: Parser[JSON] = literal | obj | array
 
-    whiteSpace *> (obj | array)
+    (whiteSpace *> (obj | array)) <* eof
   }
 }
 
