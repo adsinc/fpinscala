@@ -50,9 +50,6 @@ trait Parsers[Parser[+ _]] {
     } yield (a, b)
 
   def map2[A, B, C](a: Parser[A], b: => Parser[B])(f: (A, B) => C): Parser[C] =
-    a ** b map f.tupled
-
-  def map2ViaFlatMap[A, B, C](a: Parser[A], b: => Parser[B])(f: (A, B) => C): Parser[C] =
     for {
       aa <- a
       bb <- b
@@ -117,7 +114,7 @@ trait Parsers[Parser[+ _]] {
 
     def **[B](p2: => Parser[B]): Parser[(A, B)] = self.product(p, p2)
 
-    def map2[B, C](p2: Parser[B])(f: (A, B) => C): Parser[C] = self.map2(p, p2)(f)
+    def map2[B, C](p2: => Parser[B])(f: (A, B) => C): Parser[C] = self.map2(p, p2)(f)
 
     def flatMap[B](f: A => Parser[B]): Parser[B] = self.flatMap(p)(f)
 
@@ -125,7 +122,7 @@ trait Parsers[Parser[+ _]] {
 
     def <*(p2: => Parser[Any]): Parser[A] = self.skipR(p, p2)
 
-    def split(sep: String): Parser[List[A]] = self.split(p, sep)
+    def split(sep: Parser[String]): Parser[List[A]] = self.split(p, sep)
 
     def token: Parser[A] = self.token(p)
 
@@ -171,16 +168,16 @@ object JSON {
     import P._
 
     def array: Parser[JArray] = between("[".token, "]".token)(
-      value split "," map (_.toIndexedSeq) map JArray
+      value split ",".token map (_.toIndexedSeq) map JArray
     ) scope "array"
 
     def obj: Parser[JObject] = between("{".token, "}".token)(
-      entry split "," map (_.toMap) map JObject
+      entry split ",".token map (_.toMap) map JObject
     ) scope "object"
 
-    def entry: Parser[(String, JSON)] = escapedQuoted ** (":" *> value)
+    def entry: Parser[(String, JSON)] = escapedQuoted ** (":".token *> value)
 
-    def bool: Parser[JBool] = "true" | "false" map (_.toBoolean) map JBool
+    def bool: Parser[JBool] = "true".token | "false".token map (_.toBoolean) map JBool
 
     def literal: Parser[JSON] = scope("literal")(
       "null".token.map(_ => JNull) |
@@ -202,6 +199,8 @@ case class Location(input: String, offset: Int = 0) {
     case -1 => offset + 1
     case lineStart => offset - lineStart
   }
+
+  def fromOffset: String = input substring offset
 
   def toError(msg: String): ParseError =
     ParseError(List((this, msg)))
@@ -240,13 +239,13 @@ object MyParsers extends Parsers[MyParser] {
     if (s == input)
       Right(s)
     else
-      Left(Location(input).toError(s"Expected $s, actual $input"))
+      Left(Location(input).toError(s"Expected '$s', actual $input"))
   }
 
   implicit def regex[A](r: Regex): MyParser[String] = MyParser {
     case input@r() => Right(input)
     case input => Left(ParseError(
-      stack = List(Location(input) -> s"Unknown token $input")
+      stack = List(Location(input) -> s"Unknown token '$input'")
     ))
   }
 
@@ -335,8 +334,8 @@ object Impl1 {
       }
 
     implicit def string(s: String): Parser[String] =
-      label(s"Expected: $s") { location =>
-        val noMatchIndex = findNoMatchIndex(s, location.input)
+      label(s"Expected: '$s'") { location =>
+        val noMatchIndex = findNoMatchIndex(s, location.fromOffset)
         if (noMatchIndex == -1)
           Success(s, s.length)
         else
@@ -348,11 +347,11 @@ object Impl1 {
 
     implicit def regex[A](r: Regex): Parser[String] =
       location =>
-        r findPrefixOf location.input match {
+        r findPrefixOf location.fromOffset match {
           case Some(p) =>
             Success(p, p.length)
           case None =>
-            Failure(location.toError(s"Unknown token ${location.input}"))
+            Failure(location.toError(s"Unknown token ${location.fromOffset}"))
         }
 
     override def succeed[A](a: A): Parser[A] =
@@ -426,30 +425,21 @@ object JSONExample extends App {
   val P = fpinscala.parsing.Impl1.ParserImpl1
 
   def printResult[E](e: Either[E, Any]): Unit =
-    e.fold(println, println)
-
-  import P._
-
-  //  printResult {
-  //    P.run(whiteSpace *> ("{".token | "[".token))(
-  //      """ [{"a": 1}""".stripMargin
-  //    )
-  //  }
-
-  printResult {
-    P.run("a" *> "b")(
-      """ab"""
+    e.fold(
+      println,
+      println
     )
-  }
 
-  //  val json: Parser[JSON] = JSON.jsonParser(P)
-  //  printResult {
-  //    P.run(json)(jsonTxt)
-  //  }
-  //  println("--")
-  //  printResult {
-  //    P.run(json)(malformedJson1)
-  //  }
+  import fpinscala.parsing.Impl1._
+
+  val json: Parser[JSON] = JSON.jsonParser(P)
+  printResult {
+    P.run(json)(jsonTxt)
+  }
+  println("--")
+  printResult {
+    P.run(json)(malformedJson1)
+  }
   //  println("--")
   //  printResult {
   //    P.run(json)(malformedJson2)
