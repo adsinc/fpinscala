@@ -63,10 +63,10 @@ trait Parsers[Parser[+ _]] {
   implicit def regex[A](r: Regex): Parser[String]
 
   def skipL[A](l: Parser[Any], r: => Parser[A]): Parser[A] =
-    map2(l, r)((_, r) => r)
+    map2(l.slice, r)((_, r) => r)
 
   def skipR[A](l: Parser[A], r: => Parser[Any]): Parser[A] =
-    map2(l, r)((l, _) => l)
+    map2(l, r.slice)((l, _) => l)
 
   def between[A](l: Parser[Any], r: => Parser[Any])(p: => Parser[A]): Parser[A] =
     l *> p <* r
@@ -85,14 +85,14 @@ trait Parsers[Parser[+ _]] {
     token(quoted label "string literal")
 
   def double: Parser[Double] =
-    "[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?".r map (_.toDouble) label "double literal"
+    token("[-+]?[0-9]*\\.?[0-9]+([eE][-+]?[0-9]+)?".r) map (_.toDouble) label "double literal"
 
   def eof: Parser[String] =
     regex("\\z".r) label "unexpected trailing characters"
 
-  def whiteSpace: Parser[String] = "\\s+".r
+  def whiteSpace: Parser[String] = "\\s*".r label "whitespace"
 
-  def token[A](p: Parser[A]): Parser[A] = p <* whiteSpace
+  def token[A](p: Parser[A]): Parser[A] = attempt(p) <* whiteSpace
 
   def label[A](msg: String)(p: Parser[A]): Parser[A]
 
@@ -170,13 +170,13 @@ object JSON {
   def jsonParser[Err, Parser[+ _]](P: Parsers[Parser]): Parser[JSON] = {
     import P._
 
-    def array: Parser[JArray] = between("[", "]")(
-      value split "," map (_.toIndexedSeq) map JArray scope "array"
-    )
+    def array: Parser[JArray] = between("[".token, "]".token)(
+      value split "," map (_.toIndexedSeq) map JArray
+    ) scope "array"
 
-    def obj: Parser[JObject] = between("{", "}")(
-      entry split "," map (_.toMap) map JObject scope "object"
-    )
+    def obj: Parser[JObject] = between("{".token, "}".token)(
+      entry split "," map (_.toMap) map JObject
+    ) scope "object"
 
     def entry: Parser[(String, JSON)] = escapedQuoted ** (":" *> value)
 
@@ -191,7 +191,7 @@ object JSON {
 
     def value: Parser[JSON] = literal | obj | array
 
-    (whiteSpace *> (obj | array)) <* eof
+    whiteSpace *> (obj | array) <* eof
   }
 }
 
@@ -425,21 +425,33 @@ object JSONExample extends App {
 
   val P = fpinscala.parsing.Impl1.ParserImpl1
 
-  import fpinscala.parsing.Impl1._
-
-  def printResult[E](e: Either[E, JSON]): Unit =
+  def printResult[E](e: Either[E, Any]): Unit =
     e.fold(println, println)
 
-  val json: Parser[JSON] = JSON.jsonParser(P)
+  import P._
+
+  //  printResult {
+  //    P.run(whiteSpace *> ("{".token | "[".token))(
+  //      """ [{"a": 1}""".stripMargin
+  //    )
+  //  }
+
   printResult {
-    P.run(json)(jsonTxt)
+    P.run("a" *> "b")(
+      """ab"""
+    )
   }
-  println("--")
-  printResult {
-    P.run(json)(malformedJson1)
-  }
-  println("--")
-  printResult {
-    P.run(json)(malformedJson2)
-  }
+
+  //  val json: Parser[JSON] = JSON.jsonParser(P)
+  //  printResult {
+  //    P.run(json)(jsonTxt)
+  //  }
+  //  println("--")
+  //  printResult {
+  //    P.run(json)(malformedJson1)
+  //  }
+  //  println("--")
+  //  printResult {
+  //    P.run(json)(malformedJson2)
+  //  }
 }
