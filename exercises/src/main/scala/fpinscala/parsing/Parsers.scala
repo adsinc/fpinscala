@@ -334,12 +334,12 @@ object Impl1 {
       }
 
     implicit def string(s: String): Parser[String] =
-      label(s"Expected: '$s'") { location =>
+      location => {
         val noMatchIndex = findNoMatchIndex(s, location.fromOffset)
         if (noMatchIndex == -1)
           Success(s, s.length)
         else
-          Failure(location.advanceBy(noMatchIndex).toError(s"'$s'"))
+          Failure(location.advanceBy(noMatchIndex).toError(s"Expected: '$s'"))
       }
 
     def findNoMatchIndex(template: String, str: String): Int =
@@ -440,8 +440,8 @@ object JSONExample extends App {
   printResult {
     P.run(json)(malformedJson1)
   }
-  //  println("--")
-  //  printResult {
-  //    P.run(json)(malformedJson2)
-  //  }
+  println("--")
+  printResult {
+    P.run(json)(malformedJson2)
+  }
 }
