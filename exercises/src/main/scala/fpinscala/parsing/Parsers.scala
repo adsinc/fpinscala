@@ -211,6 +211,8 @@ case class Location(input: String, offset: Int = 0) {
   def currentLine: String =
     if (input.length > 1) input.lines.drop(line - 1).next
     else ""
+
+  def columnCaret: String = (" " * (col - 1)) + "^"
 }
 
 case class ParseError(stack: List[(Location, String)] = List(),
@@ -228,11 +230,23 @@ case class ParseError(stack: List[(Location, String)] = List(),
   def latest: Option[(Location, String)] =
     stack.lastOption
 
-  //  override def toString =
-  //    if (stack.isEmpty) "no error message"
-  //    else {
-  //      ???
-  //    }
+  override def toString =
+    if (stack.isEmpty) "no error message"
+    else {
+      val collapsed = collapseStack(stack)
+      val context =
+        collapsed.lastOption.map("\n\n" + _._1.currentLine).getOrElse("") +
+          collapsed.lastOption.map("\n" + _._1.columnCaret).getOrElse("")
+      collapsed.map { case (loc, msg) => s"${loc.line}.${loc.col} $msg" }.mkString("\n") +
+        context
+    }
+
+  def collapseStack(stack: List[(Location, String)]): List[(Location, String)] = {
+    stack.groupBy(_._1)
+      .mapValues(_.map(_._2).mkString("; "))
+      .toList
+      .sortBy(_._1.offset)
+  }
 }
 
 case class MyParser[+A](parse: String => Either[ParseError, A])
