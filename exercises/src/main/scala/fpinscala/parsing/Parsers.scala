@@ -227,6 +227,12 @@ case class ParseError(stack: List[(Location, String)] = List(),
 
   def latest: Option[(Location, String)] =
     stack.lastOption
+
+  //  override def toString =
+  //    if (stack.isEmpty) "no error message"
+  //    else {
+  //      ???
+  //    }
 }
 
 case class MyParser[+A](parse: String => Either[ParseError, A])
@@ -239,7 +245,7 @@ object MyParsers extends Parsers[MyParser] {
     if (s == input)
       Right(s)
     else
-      Left(Location(input).toError(s"Expected '$s', actual $input"))
+      Left(Location(input).toError(s"'$s'"))
   }
 
   implicit def regex[A](r: Regex): MyParser[String] = MyParser {
@@ -339,7 +345,7 @@ object Impl1 {
         if (noMatchIndex == -1)
           Success(s, s.length)
         else
-          Failure(location.advanceBy(noMatchIndex).toError(s"Expected: '$s'"))
+          Failure(location.advanceBy(noMatchIndex).toError(s"'$s'"))
       }
 
     def findNoMatchIndex(template: String, str: String): Int =
