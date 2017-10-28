@@ -9,7 +9,11 @@ val laws = List(
   monoidLaws(intAddition, smallInt),
   monoidLaws(intMultiplication, smallInt),
   monoidLaws(booleanOr, boolean),
-  monoidLaws(booleanAnd, boolean)
+  monoidLaws(booleanAnd, boolean),
+  monoidLaws(optionMonoid[Int], boolean flatMap { isSome =>
+    if(isSome) smallInt map (Some(_))
+    else Gen.unit(None)
+  })
 )
 
 laws foreach (Prop run _)
