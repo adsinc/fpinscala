@@ -46,18 +46,31 @@ object Monoid {
     val zero = None
   }
 
-  def endoMonoid[A]: Monoid[A => A] = ???
+  def endoMonoid[A]: Monoid[A => A] = new Monoid[A => A] {
+    def op(a1: A => A, a2: A => A): A => A = a1 compose a2
+    def zero: A => A = identity
+  }
 
   // TODO: Placeholder for `Prop`. Remove once you have implemented the `Prop`
   // data type from Part 2.
-  trait Prop {}
+//  trait Prop {}
 
   // TODO: Placeholder for `Gen`. Remove once you have implemented the `Gen`
   // data type from Part 2.
 
   import fpinscala.testing._
   import Prop._
-  def monoidLaws[A](m: Monoid[A], gen: Gen[A]): Prop = ???
+  def monoidLaws[A](m: Monoid[A], gen: Gen[A]): Prop = {
+    import m._
+    val zeroLaw = forAll(gen) { a =>
+      op(zero, a) == a
+      op(a, zero) == a
+    }
+    val assocLaw = forAll(Gen.listOfN(3, gen)) {
+      case List(a, b, c) => op(a, op(b, c)) == op(op(a, b), c)
+    }
+    zeroLaw && assocLaw
+  }
 
   def trimMonoid(s: String): Monoid[String] = ???
 
@@ -89,7 +102,7 @@ object Monoid {
   def parFoldMap[A,B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] = 
     ???
 
-  val wcMonoid: Monoid[WC] = ???
+//  val wcMonoid: Monoid[WC] = ???
 
   def count(s: String): Int = ???
 
