@@ -1,8 +1,9 @@
 package fpinscala.monoids
 
+import fpinscala.parallelism.Nonblocking.Par.toParOps
 import fpinscala.parallelism.Nonblocking._
-import fpinscala.parallelism.Nonblocking.Par.toParOps // infix syntax for `Par.map`, `Par.flatMap`, etc
-import language.higherKinds
+
+import scala.language.higherKinds
 
 trait Monoid[A] {
   def op(a1: A, a2: A): A
@@ -102,18 +103,34 @@ object Monoid {
       m.op(foldMapV(l, m)(f), foldMapV(r, m)(f))
     }
 
-  def ordered(ints: IndexedSeq[Int]): Boolean =
-    ???
+  def ordered(ints: IndexedSeq[Int]): Boolean = {
+    type Acc = (Int, Boolean)
+    val m = new Monoid[Acc] {
+      def op(a1: Acc, a2: Acc): Acc = {
+        val (prevInt, isOrd) = a1
+        val (currInt, _) = a2
+        currInt -> (prevInt <= currInt && isOrd)
+      }
+
+      val zero: Acc = ints.head -> true
+    }
+    foldMapV(ints, m)(Tuple2.apply(_, true))._2
+  }
 
   sealed trait WC
   case class Stub(chars: String) extends WC
   case class Part(lStub: String, words: Int, rStub: String) extends WC
 
-  def par[A](m: Monoid[A]): Monoid[Par[A]] = 
-    ???
+  def par[A](m: Monoid[A]): Monoid[Par[A]] = new Monoid[Par[A]] {
+    def op(a1: Par[A], a2: Par[A]): Par[A] = (a1 map2 a2) (m.op)
 
-  def parFoldMap[A,B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] = 
-    ???
+    val zero: Par[A] = Par.unit(m.zero)
+  }
+
+  def parFoldMap[A, B](v: IndexedSeq[A], m: Monoid[B])(f: A => B): Par[B] =
+    Par.parMap(v)(f).flatMap { bs =>
+      foldMapV(bs, par(m))(b => Par.lazyUnit(b))
+    }
 
 //  val wcMonoid: Monoid[WC] = ???
 
@@ -133,7 +150,6 @@ object Monoid {
 }
 
 trait Foldable[F[_]] {
-  import Monoid._
 
   def foldRight[A, B](as: F[A])(z: B)(f: (A, B) => B): B =
     ???
