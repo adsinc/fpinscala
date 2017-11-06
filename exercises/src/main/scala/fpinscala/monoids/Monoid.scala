@@ -143,7 +143,21 @@ object Monoid {
     val zero: WC = Stub("")
   }
 
-  def count(s: String): Int = ???
+  def count(s: String): Int = {
+
+    def wc(c: Char) =
+      if (c.isWhitespace)
+        Part("", 0, "")
+      else
+        Stub(c.toString)
+
+    def unstub(s: String) = s.length min 1
+
+    foldMapV(s.toIndexedSeq, wcMonoid)(wc) match {
+      case Stub(str) => unstub(str)
+      case Part(lStub, count, rStub) => unstub(lStub) + count + unstub(rStub)
+    }
+  }
 
   def productMonoid[A,B](A: Monoid[A], B: Monoid[B]): Monoid[(A, B)] =
     ???
