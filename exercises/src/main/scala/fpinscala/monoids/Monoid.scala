@@ -159,17 +159,37 @@ object Monoid {
     }
   }
 
-  def productMonoid[A,B](A: Monoid[A], B: Monoid[B]): Monoid[(A, B)] =
-    ???
+  def productMonoid[A, B](A: Monoid[A], B: Monoid[B]): Monoid[(A, B)] = new Monoid[(A, B)] {
+    def op(a1: (A, B), a2: (A, B)): (A, B) = A.op(a1._1, a2._1) -> B.op(a1._2, a2._2)
+
+    def zero: (A, B) = (A.zero, B.zero)
+  }
 
   def functionMonoid[A,B](B: Monoid[B]): Monoid[A => B] =
-    ???
+    new Monoid[A => B] {
+      def op(a1: A => B, a2: A => B): A => B =
+        a => B.op(a1(a), a2(a))
+
+      val zero: A => B =
+        _ => B.zero
+    }
 
   def mapMergeMonoid[K,V](V: Monoid[V]): Monoid[Map[K, V]] =
-    ???
+    new Monoid[Map[K, V]] {
+      def zero: Map[K, V] = Map()
+
+      def op(a: Map[K, V], b: Map[K, V]): Map[K, V] =
+        (a.keySet ++ b.keySet).foldLeft(zero) { (acc, k) =>
+          acc.updated(k, V.op(
+            a.getOrElse(k, V.zero),
+            b.getOrElse(k, V.zero)
+          ))
+        }
+    }
 
   def bag[A](as: IndexedSeq[A]): Map[A, Int] =
-    ???
+    foldMapV(as, mapMergeMonoid[A, Int](intAddition))(a => Map(a -> 1))
+
 }
 
 trait Foldable[F[_]] {
@@ -187,7 +207,8 @@ trait Foldable[F[_]] {
     ???
 
   def toList[A](as: F[A]): List[A] =
-    ???
+    foldRight(as)(List.empty[A])(_ :: _)
+
 }
 
 object ListFoldable extends Foldable[List] {
@@ -199,6 +220,8 @@ object ListFoldable extends Foldable[List] {
 
   override def foldMap[A, B](as: List[A])(f: A => B)(mb: Monoid[B]): B =
     foldRight(as)(mb.zero)((a, b) => mb.op(f(a), b))
+
+  override def toList[A](as: List[A]) = as
 }
 
 object IndexedSeqFoldable extends Foldable[IndexedSeq] {
