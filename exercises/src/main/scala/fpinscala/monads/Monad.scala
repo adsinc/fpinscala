@@ -3,9 +3,9 @@ package monads
 
 import parsing._
 import testing._
-import parallelism._
+import parallelism.Nonblocking._
 import state._
-import parallelism.Par._
+import parallelism.Nonblocking.Par._
 import language.higherKinds
 
 
@@ -62,7 +62,12 @@ object Monad {
       ma flatMap f
   }
 
-  val parMonad: Monad[Par] = ???
+  val parMonad: Monad[Par] = new Monad[Par] {
+    def unit[A](a: => A): Par[A] = Par.unit(a)
+
+    def flatMap[A, B](ma: Par[A])(f: A => Par[B]): Par[B] =
+      Par.flatMap(ma)(f)
+  }
 
   def parserMonad[P[+_]](p: Parsers[P]): Monad[P] = ???
 
