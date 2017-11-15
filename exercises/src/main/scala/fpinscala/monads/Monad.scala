@@ -6,6 +6,7 @@ import testing._
 import parallelism.Nonblocking._
 import state._
 import parallelism.Nonblocking.Par._
+
 import language.higherKinds
 
 
@@ -69,7 +70,12 @@ object Monad {
       Par.flatMap(ma)(f)
   }
 
-  def parserMonad[P[+_]](p: Parsers[P]): Monad[P] = ???
+  def parserMonad[P[+_]](p: Parsers[P]): Monad[P] = new Monad[P] {
+    def flatMap[A, B](ma: P[A])(f: A => P[B]): P[B] =
+      p.flatMap(ma)(f)
+
+    def unit[A](a: => A): P[A] = p.succeed(a)
+  }
 
   val optionMonad: Monad[Option] = ???
 
