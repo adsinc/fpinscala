@@ -77,11 +77,26 @@ object Monad {
     def unit[A](a: => A): P[A] = p.succeed(a)
   }
 
-  val optionMonad: Monad[Option] = ???
+  val optionMonad: Monad[Option] = new Monad[Option] {
+    def flatMap[A, B](ma: Option[A])(f: A => Option[B]): Option[B] =
+      ma flatMap f
 
-  val streamMonad: Monad[Stream] = ???
+    def unit[A](a: => A): Option[A] = Some(a)
+  }
 
-  val listMonad: Monad[List] = ???
+  val streamMonad: Monad[Stream] = new Monad[Stream] {
+    def flatMap[A, B](ma: Stream[A])(f: A => Stream[B]): Stream[B] =
+      ma flatMap f
+
+    def unit[A](a: => A): Stream[A] = Stream(a)
+  }
+
+  val listMonad: Monad[List] = new Monad[List] {
+    def flatMap[A, B](ma: List[A])(f: A => List[B]): List[B] =
+      ma flatMap f
+
+    def unit[A](a: => A): List[A] = List(a)
+  }
 
   def stateMonad[S] = ???
 
