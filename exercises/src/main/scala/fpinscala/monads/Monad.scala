@@ -7,7 +7,7 @@ import parallelism.Nonblocking._
 import state._
 import parallelism.Nonblocking.Par._
 
-import language.higherKinds
+import language.{higherKinds, reflectiveCalls}
 
 
 trait Functor[F[_]] {
@@ -124,7 +124,12 @@ object Monad {
     def unit[A](a: => A): List[A] = List(a)
   }
 
-  def stateMonad[S] = ???
+  def stateMonad[S] = new Monad[({type f[x] = State[S, x]})#f] {
+    def unit[A](a: => A): State[S, A] = State(s => (a, s))
+
+    def flatMap[A, B](ma: State[S, A])(f: A => State[S, B]): State[S, B] =
+      ma flatMap f
+  }
 
   val idMonad: Monad[Id] = new Monad[Id] {
     def flatMap[A, B](ma: Id[A])(f: A => Id[B]): Id[B] = ma flatMap f
