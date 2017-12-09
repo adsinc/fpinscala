@@ -106,7 +106,19 @@ object Applicative {
       a zip b map f.tupled
   }
 
-  def validationApplicative[E]: Applicative[({type f[x] = Validation[E,x]})#f] = ???
+  def validationApplicative[E] = new Applicative[({type f[x] = Validation[E,x]})#f] {
+
+    def unit[A](a: => A): Validation[E, A] = Success(a)
+
+    override def map2[A, B, C](fa: Validation[E, A], fb: Validation[E, B])(f: (A, B) => C): Validation[E, C] =
+      (fa, fb) match {
+        case (Success(a), Success(b)) => Success(f(a, b))
+        case (Failure(head1, tail1), Failure(head2, tail2)) =>
+          Failure(head1, tail1 ++ (head2 +: tail2))
+        case (a@Failure(_, _), _) => a
+        case (_, b@Failure(_, _)) => b
+      }
+  }
 
   type Const[A, B] = A
 
