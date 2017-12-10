@@ -1,13 +1,13 @@
 package fpinscala
 package applicative
 
-import monads.Functor
-import state._
-import State._
+import fpinscala.monads.Functor
+import fpinscala.state.State._
+import fpinscala.state._
 //import StateUtil._ // defined at bottom of this file
-import monoids._
-import language.higherKinds
-import language.implicitConversions
+import fpinscala.monoids._
+
+import scala.language.{higherKinds, implicitConversions}
 
 trait Applicative[F[_]] extends Functor[F] {
 
@@ -51,7 +51,14 @@ trait Applicative[F[_]] extends Functor[F] {
     }
   }
 
-  def compose[G[_]](G: Applicative[G]): Applicative[({type f[x] = F[G[x]]})#f] = ???
+  def compose[G[_]](G: Applicative[G]): Applicative[({type f[x] = F[G[x]]})#f] = {
+    val self = this
+    new Applicative[({type f[x] = F[G[x]]})#f] {
+      def unit[A](a: => A): F[G[A]] = unit(a)
+      override def map2[A, B, C](fa: F[G[A]], fb: F[G[B]])(f: (A, B) => C): F[G[C]] =
+        self.map2(fa, fb)((ga, gb) => G.map2(ga, gb)(f))
+    }
+  }
 
   def sequenceMap[K,V](ofa: Map[K,F[V]]): F[Map[K,V]] = ???
 }
