@@ -29,7 +29,7 @@ trait Applicative[F[_]] extends Functor[F] {
     apply(unit(f))(fa)
 
   def sequence[A](fas: List[F[A]]): F[List[A]] =
-    fas.foldRight(unit(List.empty[A]))((acc, a) => map2(acc, a)(_ :: _))
+    fas.foldRight(unit(List.empty[A]))((a, acc) => map2(a, acc)(_ :: _))
 
   def traverse[A,B](as: List[A])(f: A => F[B]): F[List[B]] =
     as.foldRight(unit(List.empty[B]))((a, fbs) => map2(f(a), fbs)(_ :: _))
@@ -60,7 +60,10 @@ trait Applicative[F[_]] extends Functor[F] {
     }
   }
 
-  def sequenceMap[K,V](ofa: Map[K,F[V]]): F[Map[K,V]] = ???
+  def sequenceMap[K,V](ofa: Map[K,F[V]]): F[Map[K,V]] =
+    ofa.foldRight(unit(Map.empty[K, V])) { case ((k, fv), acc) =>
+      map2(acc, fv)((m, v) => m + (k -> v))
+    }
 }
 
 case class Tree[+A](head: A, tail: List[Tree[A]])
