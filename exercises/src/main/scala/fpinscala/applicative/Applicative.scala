@@ -1,6 +1,7 @@
 package fpinscala
 package applicative
 
+import fpinscala.applicative.Monad.Id
 import fpinscala.monads.Functor
 import fpinscala.state.State._
 import fpinscala.state._
@@ -87,6 +88,8 @@ trait Monad[F[_]] extends Applicative[F] {
 }
 
 object Monad {
+  type Id[A] = A
+
   def eitherMonad[E]= new Monad[({type f[x] = Either[E, x]})#f] {
     def unit[A](a: => A): Either[E, A] = Right(a)
     override def flatMap[A, B](ei: Either[E, A])(f: A => Either[E, B]): Either[E, B] =
@@ -97,6 +100,11 @@ object Monad {
     def unit[A](a: => A): State[S, A] = State(s => (a, s))
     override def flatMap[A,B](st: State[S, A])(f: A => State[S, B]): State[S, B] =
       st flatMap f
+  }
+
+  val idMonad = new Monad[Id] {
+    def unit[A](a: => A): Id[A] = a
+    override def flatMap[A, B](ma: A)(f: A => B): B = f(ma)
   }
 
   def composeM[F[_],N[_]](implicit F: Monad[F], N: Monad[N], T: Traverse[N]):
@@ -147,12 +155,13 @@ object Applicative {
 }
 
 trait Traverse[F[_]] extends Functor[F] with Foldable[F] {
-  def traverse[G[_]:Applicative,A,B](fa: F[A])(f: A => G[B]): G[F[B]] =
+  def traverse[G[_],A,B](fa: F[A])(f: A => G[B])(implicit G: Applicative[G]): G[F[B]] =
     sequence(map(fa)(f))
-  def sequence[G[_]:Applicative,A](fma: F[G[A]]): G[F[A]] =
+  def sequence[G[_],A](fma: F[G[A]])(implicit G: Applicative[G]): G[F[A]] =
     traverse(fma)(ma => ma)
 
-  def map[A,B](fa: F[A])(f: A => B): F[B] = ???
+  def map[A,B](fa: F[A])(f: A => B): F[B] =
+    traverse[Id, A, B](fa)(f)(Monad.idMonad)
 
   import Applicative._
 
@@ -201,9 +210,8 @@ object Traverse {
   }
 
   val treeTraverse = new Traverse[Tree] {
-    override def traverse[G[_], A, B](fa: Tree[A])(f: A => G[B])(implicit G: Applicative[G]): G[Tree[B]] = {
-      ???
-    }
+    override def traverse[G[_], A, B](fa: Tree[A])(f: A => G[B])(implicit G: Applicative[G]): G[Tree[B]] =
+      G.map2(f(fa.head), listTraverse.traverse(fa.tail)(a => traverse(a)(f)))(Tree(_, _))
   }
 }
 
