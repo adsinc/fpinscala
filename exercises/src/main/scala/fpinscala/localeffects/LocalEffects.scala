@@ -2,6 +2,8 @@ package fpinscala.localeffects
 
 import fpinscala.monads._
 
+import scala.collection.mutable
+
 object Mutable {
   def quicksort(xs: List[Int]): List[Int] = if (xs.isEmpty) xs else {
     val arr = xs.toArray
@@ -159,7 +161,41 @@ object Immutable {
         sorted <- arr.freeze
       } yield sorted
   })
+
+  def countChars(str: String): Map[Char, Int] =
+    if(str.isEmpty) Map.empty else ST.runST(new RunnableST[Map[Char, Int]] {
+      def apply[S]: ST[S, Map[Char, Int]] = for {
+        map <- STMap[S, Char, Int]()
+        _ <- str.foldRight(noop[S]) { (c, m) => for {
+          _ <- m
+          cnt <- map.get(c)
+          _ <- map.put(c, cnt.getOrElse(0) + 1)
+        } yield ()}
+        result <- map.freeze
+      } yield result
+    })
 }
 
-import scala.collection.mutable.HashMap
+sealed abstract class STMap[S, K, V] {
+  protected def value: mutable.HashMap[K, V]
 
+  def size: ST[S, Int] = ST(value.size)
+
+  def put(k: K, v: V): ST[S, Unit] = new ST[S, Unit] {
+    protected def run(s: S): (Unit, S) = {
+      value(k) = v
+      ((), s)
+    }
+  }
+
+  def get(k: K): ST[S, Option[V]] = ST(value.get(k))
+
+  def freeze: ST[S, Map[K, V]] = ST(value.toMap)
+}
+
+object STMap {
+  def apply[S, K, V](): ST[S, STMap[S, K, V]] =
+    ST(new STMap[S, K, V] {
+      lazy val value = mutable.HashMap()
+    })
+}
