@@ -208,7 +208,8 @@ object SimpleStreamTransducers {
     /*
      * Exercise 6: Implement `zipWithIndex`.
      */
-    def zipWithIndex: Process[I,(O,Int)] = ???
+    def zipWithIndex: Process[I,(O,Int)] =
+      zip(this, count map (_ - 1))
 
     /* Add `p` to the fallback branch of this process */
     def orElse(p: Process[I,O]): Process[I,O] = this match {
@@ -372,6 +373,17 @@ object SimpleStreamTransducers {
      * `count`?
      */
 
+    def zip[A, B, C](p1: Process[A, B], p2: Process[A, C]): Process[A, (B, C)] =
+      (p1, p2) match {
+        case (Halt(), _) => Halt()
+        case (_, Halt()) => Halt()
+        case (Emit(b, t1), Emit(c, t2)) => Emit((b, c), zip(t1, t2))
+        case (Await(recv1), _) =>
+          Await(oa => zip(recv1(oa), feed(oa)(p2)))
+        case (_, Await(recv2)) =>
+          Await(oa => zip(feed(oa)(p1), recv2(oa)))
+      }
+
     def feed[A,B](oa: Option[A])(p: Process[A,B]): Process[A,B] =
       p match {
         case Halt() => p
@@ -391,7 +403,14 @@ object SimpleStreamTransducers {
      * We choose to emit all intermediate values, and not halt.
      * See `existsResult` below for a trimmed version.
      */
-    def exists[I](f: I => Boolean): Process[I,Boolean] = ???
+    def exists[I](f: I => Boolean): Process[I,Boolean] = {
+      def go(isExist: Boolean): Process[I, Boolean] =
+        await(i => {
+          val res = isExist || f(i)
+          emit(res, go(res))
+        })
+      go(false)
+    }
 
     /* Awaits then emits a single value, then halts. */
     def echo[I]: Process[I,I] = await(i => emit(i))
