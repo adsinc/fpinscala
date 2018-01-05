@@ -1,9 +1,14 @@
 package fpinscala.streamingio
 
-import fpinscala.iomonad.{IO,Monad,Free,unsafePerformIO}
+import java.io.{File, PrintWriter}
+
+import fpinscala.iomonad.{Free, IO, Monad, unsafePerformIO}
+
 import language.implicitConversions
 import language.higherKinds
 import language.postfixOps
+import scala.annotation.tailrec
+import scala.io.Source
 
 object ImperativeAndLazyIO {
 
@@ -443,6 +448,29 @@ object SimpleStreamTransducers {
      * Exercise 9: Write a program that reads degrees fahrenheit as `Double` values from a file,
      * converts each temperature to celsius, and writes results to another file.
      */
+
+    def processFromFileToFile[A](in: File,
+                                 out: File,
+                                 p: Process[String, A]): IO[Unit] = IO {
+      @tailrec
+      def go(ss: Iterator[String], dd: PrintWriter, cur: Process[String, A]): Unit =
+        cur match {
+          case Halt() => ()
+          case Await(recv) =>
+            val next = if (ss.hasNext) recv(Some(ss.next())) else recv(None)
+            go(ss, dd, next)
+          case Emit(h, t) =>
+            dd.println(h)
+            go(ss, dd, t)
+        }
+      val s = Source.fromFile(in)
+      val d = new PrintWriter(out)
+      try go(s.getLines(), d, p)
+      finally {
+        s.close()
+        d.close()
+      }
+    }
 
     def toCelsius(fahrenheit: Double): Double =
       (5.0 / 9.0) * (fahrenheit - 32.0)
