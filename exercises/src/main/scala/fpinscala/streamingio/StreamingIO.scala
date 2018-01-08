@@ -2,13 +2,11 @@ package fpinscala.streamingio
 
 import java.io.{File, PrintWriter}
 
-import fpinscala.iomonad.{Free, IO, Monad, unsafePerformIO}
+import fpinscala.iomonad.IO
 
-import language.implicitConversions
-import language.higherKinds
-import language.postfixOps
 import scala.annotation.tailrec
 import scala.io.Source
+import scala.language.{higherKinds, implicitConversions, postfixOps}
 
 object ImperativeAndLazyIO {
 
@@ -20,8 +18,6 @@ object ImperativeAndLazyIO {
   Our first implementation is an imperative implementation, embedded
   into `IO`.
                              */
-
-  import java.io._
 
   def linesGt40k(filename: String): IO[Boolean] = IO {
     // There are a number of convenience functions in scala.io.Source
@@ -585,7 +581,16 @@ object GeneralizedStreamTransducers {
      * below, this is not tail recursive and responsibility for stack safety
      * is placed on the `Monad` instance.
      */
-    def runLog(implicit F: MonadCatch[F]): F[IndexedSeq[O]] = ???
+    def runLog(implicit F: MonadCatch[F]): F[IndexedSeq[O]] = {
+      def go(cur: Process[F, O], acc: IndexedSeq[O]): F[IndexedSeq[O]] =
+        cur match {
+          case Emit(h, t) => go(t, acc :+ h)
+          case Halt(End) => F.unit(acc)
+          case Halt(err) => F.fail(err)
+          case Await(req, recv) => F.flatMap(F.attempt(req)) { e => go(Try(recv(e)), acc)}
+        }
+      go(this, IndexedSeq())
+    }
 
     /*
      * We define `Process1` as a type alias - see the companion object
@@ -775,7 +780,7 @@ object GeneralizedStreamTransducers {
      * See the definition in the body of `Process`.
      */
 
-    import java.io.{BufferedReader,FileReader}
+    import java.io.{BufferedReader, FileReader}
     val p: Process[IO, String] =
       await(IO(new BufferedReader(new FileReader("lines.txt")))) {
         case Right(b) =>
@@ -1023,7 +1028,7 @@ object GeneralizedStreamTransducers {
      * input, so code that uses this channel does not need to be
      * responsible for knowing how to obtain a `Connection`.
      */
-    import java.sql.{Connection, PreparedStatement, ResultSet}
+    import java.sql.{Connection, PreparedStatement}
 
     def query(conn: IO[Connection]):
         Channel[IO, Connection => PreparedStatement, Map[String,Any]] =
@@ -1097,8 +1102,8 @@ object GeneralizedStreamTransducers {
 
 object ProcessTest extends App {
   import GeneralizedStreamTransducers._
-  import fpinscala.iomonad.IO
   import Process._
+  import fpinscala.iomonad.IO
 
   val p = eval(IO { println("woot"); 1 }).repeat
   val p2 = eval(IO { println("cleanup"); 2 } ).onHalt {
