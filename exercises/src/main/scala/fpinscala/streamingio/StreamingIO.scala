@@ -995,7 +995,8 @@ object GeneralizedStreamTransducers {
       eval(IO(a)).flatMap { a => Emit(a, constant(a)) }
 
     /* Exercise 12: Implement `join`. Notice this is the standard monadic combinator! */
-    def join[F[_],A](p: Process[F,Process[F,A]]): Process[F,A] = ???
+    def join[F[_],A](p: Process[F,Process[F,A]]): Process[F,A] =
+      p.flatMap(identity)
 
     /*
      * An example use of the combinators we have so far: incrementally
